@@ -15,7 +15,7 @@ let loadDBData = async ()=>{
     //console.log(data);
     return new Promise(async (res,req)=>{
       // save data to DB
-      const uri = "mongodb+srv://boredSchedulerBot:Samnasamja1@boredscheduler.mrpmz.mongodb.net/boredScheduler?retryWrites=true&w=majority";
+      const uri = process.env.MONGOURI;
       const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
       try{
         await client.connect();
