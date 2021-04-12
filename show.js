@@ -48,7 +48,7 @@ let logMessage = async (channel,msgData, client)=>{
     if(!client) return;
     channel = await client.channels.fetch(channel);
   }
-  logMsg = `Bot activity by @${msgData.user}!
+  logMsg = `Bot activity by ${msgData.user}!
 Command:
 >   *__${msgData.content}__*`;
   if(msgData.choose){
