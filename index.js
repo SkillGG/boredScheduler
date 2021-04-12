@@ -4,7 +4,7 @@ const {show,newf,newfb} = require("./show.js");
 const {change} = require("./change.js");
 const {_new} = require("./new.js");
 const {getNextDayOfWeek,getDayOfWeekAfterWeeks,dow,gdt} = require("./datefn.js");
-// require("./keep-alive.js");
+require("./keep-alive.js")();
 
 // user consts
 const RGX = {
@@ -24,7 +24,12 @@ const RGX = {
   show: /^\s*(help|chapter|series|all|ceased)\s*(?:([^\r\n\t\f\v]+?)[\s:]*(\d[\d.]*)?)?$/i,
   _new: /^\s*(chapter)$/i
 }
+const Roles = {
+  staff:"777842454401253377",
+  mute:"815575253887615006"
+}
 const Channels = {
+  obj:{},
   schedule:"803360266854072372",
   botlog:"813148662707519549",
   release:"777815091650232362"// "805919561064382495"// 
@@ -56,9 +61,18 @@ let exitNormally = async function() {
 client.on("ready", ()=>{
   console.log("Ready");
   // get channel
+  client.channels.fetch(Channels.botlog)
+  .then(r=>{
+    Channels.obj.botlog = r;
+  });
+  client.channels.fetch(Channels.release)
+  .then(r=>{
+    Channels.obj.release = r;
+  });
   client.channels.fetch(Channels.schedule)
   .then(r=>{
     // Clean channel
+    Channels.obj.schedule = r;
     console.log("Cleaning channel");
     r.messages.fetch() // get messages
     .then(m=>{
@@ -87,14 +101,36 @@ let onreaction = async (reaction)=>{
 // on message
 let onmessage = async (msg)=>{
   let x = null;
+  let guild = msg.channel.guild;
+  let member = guild.member(msg.author);
+  if(member.roles.cache.has(Roles.staff)){
+    console.log(msg.content);
+    let muteid=null;
+    if(muteid=/^(un)?mute\s*<@!(\d+)>\s*$/.exec(msg.content)){
+      let mutemember = guild.member(muteid[2]);
+      // console.log(mutemember);
+      if(!muteid[1])
+        await mutemember.roles.add(Roles.mute);
+      else
+        await mutemember.roles.remove(Roles.mute);
+
+      // log
+      await msg.channel.send(`${msg.author} ${muteid[1]?"un":""}muted ${mutemember}!`);
+      let logMsg = `Bot activity by ${msg.author}!
+Command:` + `
+>   *__${msg.content}__*`.replace(/<@!(.*?)>/g, `${mutemember.user.username}`);
+      Channels.obj.botlog.send(logMsg);
+    }
+  }
   if(msg.channel.id === Channels.schedule){
     // got good channel
-    let msgRegex = /^(exit|save|help|clear|debug|show|done|revoke|new|change|cease)(.*?)$/i;
+    let msgRegex = /^(exit|reload|save|help|clear|debug|show|done|revoke|new|change|cease)(.*?)$/i;
     console.log("Message registered!", msg.content, msg.author.bot, msg.author.id, client.user.id);
     let msgresult,showresult,doneresult,revokeresult,newresult,changeresult,ceaseresult;
     // get which function was used
     let messageData = {log:true,content:msg.content, user:msg.author};
-    let nDate = new Date(); nDate.setHours(1);nDate.setMinutes(0);nDate.setSeconds(1);
+    let nDate = new Date();
+    nDate.setMinutes(59);nDate.setSeconds(59);nDate.setHours(23);
     if(msgresult=msgRegex.exec(msg.content)){
       // switch by command
       switch(msgresult[1].toLowerCase()){
@@ -108,6 +144,11 @@ let onmessage = async (msg)=>{
         case "save":
           await SeriesData.save();
           messageData.log = false;
+        break;
+        case "reload":
+          await SeriesData.reload();
+          messageData.log = false;
+          await show.last(msg.channel, {data:SeriesData.data});
         break;
         case "exit":
           messageData.log = false;
@@ -202,6 +243,7 @@ let onmessage = async (msg)=>{
                       case "RL":
                         if(!rest)
                           return show.error({msg:"DexID Not specified!", command:"done \\* **RL**"},msg.channel);
+                        // TODO: LATE and WEEKSKIP implemetation 
                         let RelMSG = await client.channels.fetch(Channels.release).then(async chn=>{
                           return await chn.send(`${NOMENTION?"":selectS.mention?`<@&${selectS.mention}> `:""}**${selectS.getName()} chapter ${selectC.id} released**\nOn MangaDex: https://mangadex.org/chapter/${rest.trim()}`);
                         });
@@ -507,11 +549,11 @@ let onmessage = async (msg)=>{
     if(!(msg.author.id===client.user.id)){
       if(!msg.deleted)
         msg.delete();
-      await show.log(Channels.botlog, messageData, client);
+      await show.log(Channels.obj.botlog, messageData, client);
     }
   }
 }
 
 // discord.js event handler
 client.on('message', onmessage);
-client.on('messageReactionAdd', onreaction);
+client.on('messageReactionAdd', onreaction); 

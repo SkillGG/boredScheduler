@@ -10,6 +10,9 @@ let debug = ()=>{
 
 const PARTIAL = "__We're half way!__";
 const ALMOST = "__We're almost there!__";
+const DONE = ":o:";
+const DEADLINE_after = ":x:\n**~~Deadline: $date~~**";
+const DEADLINE_before = ":x:\nDeadline: $date";
 
 let error = (o,channel)=>{
   if(!channel) return console.error("chapter not specified!");
@@ -233,11 +236,11 @@ let showAllData = async (data, channel, ceased)=>{
         sDate.setDate(sDate.getDate()-(parseInt(curch.late)||0));
       curch.status.forEach((x,z)=>{
         let Deadline = getDeadline((e.schedule||{dows:[]}).dows[z],curch.weekSkip||false,sDate);
-        let DeadText, DoneText = "DONE";
+        let DeadText, DoneText = DONE;
         if(Deadline.text!=NO_DEADLINE && Deadline.date-(new Date()) < 0)
-          DeadText = `**~~Deadline: ${Deadline.text}~~**`
+          DeadText = DEADLINE_after.replace("$date", `${Deadline.text}`);
         else
-          DeadText = `Deadline: ${Deadline.text}`;
+          DeadText = DEADLINE_before.replace("$date",`${Deadline.text}`);
         if(!!x&&typeof x==="object"){
           // TODO: get done properties
           switch(scodes[z].toLowerCase()){
@@ -278,16 +281,19 @@ let showChapterData = async (sdata, chdata, channel)=>{
     sDate = new Date(chdata.startDate);
     sDate.setDate(sDate.getDate()+1);
   } else{
-    sDate = -1;
+    sDate = new Date(chdata.sDate||-1);
   }
-  if(chdata.late)
+  console.log(chdata, sDate)
+  if(sDate >= 0 && chdata.late)
     sDate.setDate(sDate.getDate()- (parseInt(chdata.late)||0));
+  if(sDate < 0)
+    sDate = -1;
   chdata.status.forEach((st,i)=>{
     console.log(chdata.startDate, sDate);
       let Deadline = getDeadline((sdata.schedule||{dows:[]}).dows[i],chdata.weekSkip||false,sDate);
       let DeadText, DoneText = "DONE";
       if(Deadline.text!=NO_DEADLINE && Deadline.date-(new Date()) < 0)
-        DeadText = `**~~Deadline: ${Deadline.text}~~**`
+        DeadText = DEAD_after.replace()
       else
         DeadText = `Deadline: ${Deadline.text}`;
       if(!!st&&typeof st==="object"){
@@ -303,7 +309,7 @@ let showChapterData = async (sdata, chdata, channel)=>{
             if(st.dexid)
               DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid})`;
             else 
-              DoneText = `DONE`;
+              DoneText = DONE;
           break;
         }
       }
@@ -335,10 +341,12 @@ let showSeriesData = async (sdata,channel, start)=>{
        sDate = new Date(e.startDate);
       sDate.setDate(sDate.getDate()+1);
     } else{
-      sDate = -1;
+      sDate = new Date(e.sDate||-1);
     }
-    if(e.late)
+    if(sDate > 0 && e.late)
       sDate.setDate(sDate.getDate()-(parseInt(e.late)||0));
+    if(sDate < 0)
+      sDate = -1;
     let chapterEmbed = new Discord.MessageEmbed().setTitle(`${e.volume?`Vol.${e.volume} `:""}Ch.${e.id}`).setColor("#0000ff");
     chapterEmbed.fields.push(newf(`Name`,`${e.name?e.name:"------"}`,false));
     chapterEmbed.fields.push(newf(`Progress`, `${e.status.reduce((a,v)=>a+(!!v))}/${e.status.length}`));
@@ -363,7 +371,7 @@ let showSeriesData = async (sdata,channel, start)=>{
             if(st.dexid)
               DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid})`;
             else 
-              DoneText = `DONE`;
+              DoneText = DONE;
           break;
         }
       }
