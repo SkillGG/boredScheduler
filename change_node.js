@@ -24,6 +24,11 @@ const MongoClient = require('mongodb').MongoClient;
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].late":1}},{arrayFilters:[{"chap.id":"22"}]});
 			// Unset late chapter
 			// await coll.updateOne({id:1},{$unset:{"chapters.$[chap].late":""}},{arrayFilters:[{"chap.id":"21"}]});
+			// await coll.updateOne({id:1}, {$set:{"siteName":"Denjin"}});
+			await coll.updateOne({id:1}, {$set:{"dexID":"43504"}});
+			await coll.updateOne({id:2}, {$set:{"dexID":"57539"}});
+			await coll.updateOne({id:3}, {$set:{"dexID":"56318"}});
+			await coll.updateOne({id:4}, {$set:{"dexID":"26793"}});
 			console.log("done")
 		}catch(err){
 			console.error(err.stack);
