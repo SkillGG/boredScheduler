@@ -196,9 +196,9 @@ let showReactionSeriesSelect = (channel, series, custom)=>{
 let LASTDATA = null;
 
 let showLast = async (channel, data)=>{
-  //console.log("showing last!");
+  console.log("showing last!");
   if(!LASTDATA){
-    //console.log("no LASTDATA!");
+    console.log("no LASTDATA!");
     ret=await showAllData(data.data, channel,data.ceased);
   }else {
     switch(LASTDATA.t){
@@ -218,10 +218,10 @@ let showLast = async (channel, data)=>{
 let showAllData = async (data, channel, ceased)=>{
   if(!channel) return console.error("chapter not specified!");
   if(!data) return console.error("Data not specified!");
+  console.log("Showing all!");
   LASTDATA = {ch:channel,t:0,data,ceased};
   //console.log("data",data);
   await clearEmbeds();
-  let embedAll = [];
   data.series.forEach((e,i,a)=>{
     if(!ceased && e.ceased) return;
     let newEmbed = new Discord.MessageEmbed().setTitle(`${e.getName()}`).setColor("#0000ff");
@@ -260,16 +260,14 @@ let showAllData = async (data, channel, ceased)=>{
       });
       newEmbed.setFooter(`chapter\u200b${e.id}:${curch.id}${"\u3000".repeat(125)}.`)
     }
-    embedAll.push(newEmbed);
-  });
-  embedAll.forEach((e,i,a)=>{
-    channel.send(e).then(m=>{embeds.push(m);})
+    channel.send(newEmbed).then(m=>{embeds.push(m);})
   });
 }
 let showChapterData = async (sdata, chdata, channel)=>{
   if(!channel) return console.error("chapter not specified!");
   if(!sdata || !chdata) return console.error("data not specified!");
   LASTDATA = {ch:channel,t:1,sdata,chdata};
+  console.log("Showing chapter");
   await clearEmbeds();
   let newembed =
     new Discord.MessageEmbed()
@@ -327,6 +325,7 @@ let showSeriesData = async (sdata,channel, start)=>{
     start = parseFloat(sdata.chapters.getCurrent().id)-parseInt(sdata.parent.showVal/2);
   end= start+sdata.parent.showVal;
   LASTDATA = {ch:channel,t:2,sdata,start};
+  console.log("Showing series");
   await clearEmbeds();
   let embedAll = [
     new Discord.MessageEmbed().setTitle(`${sdata.getName()}(#${sdata.id}) ${(sdata.ceased?"~~Ceased~~":"On-going")}`)
@@ -396,3 +395,4 @@ module.exports.show = {
 };
 module.exports.newf = newf;
 module.exports.newbf = newbf;
+module.exports.defSC = defSC;
