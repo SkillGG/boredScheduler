@@ -1,6 +1,7 @@
 const fs = require("fs");
 const {gdt} = require("./datefn.js");
 const MongoClient = require('mongodb').MongoClient;
+const {Site} = require("./site.js");
 let SeriesData;
 
 let safeRegex = rn =>{
@@ -23,10 +24,11 @@ let loadDBData = async ()=>{
         let coll = db.collection("series");
         for(let i = 0; i < SeriesData.data.series.length; i++){
           let series = SeriesData.data.series[i];
+          Site.update(series);
           await coll.updateOne({id:series.id},{$set:series},{upsert:true});
         }
       }catch(err){
-        console.error(err.stack);
+        console.error("Monog error:", err, err.stack);
       }finally {
         client.close();
       }
