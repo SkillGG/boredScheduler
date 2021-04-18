@@ -3,7 +3,6 @@ const {SeriesData} = require("./series.js");
 const {show,newf,newfb} = require("./show.js");
 const {change} = require("./change.js");
 const {_new} = require("./new.js");
-const {getNextDayOfWeek,getDayOfWeekAfterWeeks,dow,gdt} = require("./datefn.js");
 require("./keep-alive.js")();
 
 // user consts
