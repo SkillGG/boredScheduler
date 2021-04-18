@@ -1,4 +1,4 @@
-function getDayOfWeekAfterWeeks(date = new Date(), dayOfWeek = 0, weeks = 1){
+function getDayOfWeekAfterWeeks(date, dayOfWeek, weeks){
   weeks = parseInt(weeks)||1;
   if(!(date instanceof Date)) date = new Date();
   let resultDate = new Date(date.getTime());
@@ -6,7 +6,7 @@ function getDayOfWeekAfterWeeks(date = new Date(), dayOfWeek = 0, weeks = 1){
   return getNextDayOfWeek(resultDate, dayOfWeek);
 }
 
-function getNextDayOfWeek(date = new Date(), dayOfWeek = 0) {
+function getNextDayOfWeek(date, dayOfWeek) {
     dayOfWeek = (parseInt(dayOfWeek)||1)%7;
     if(!(date instanceof Date)) date = new Date();
     let resultDate = new Date(date.getTime());
@@ -14,14 +14,14 @@ function getNextDayOfWeek(date = new Date(), dayOfWeek = 0) {
      return resultDate;
 }
 
-let gdt = (date = new Date(), year = !0)=>{
+let gdt = (date, year)=>{
   if(!(date instanceof Date)) return "";
   return `${date.getUTCDate()<10?`0${date.getUTCDate()}`:date.getUTCDate()}/${(date.getUTCMonth()+1)<10?`0${date.getUTCMonth()+1}`:date.getUTCMonth()+1}${year?`/${date.getUTCFullYear()}`:""} UTC`;
 }
 
 const NO_DEADLINE = "none";
 
-let dow = (e = 0,ws = 0,date = new Date())=>{
+let dow = (e,ws,date)=>{
   if(!ws){
     switch(e){
       case 0:
@@ -49,7 +49,7 @@ let dow = (e = 0,ws = 0,date = new Date())=>{
   }
 }
 
-let getDeadline = (e = 0,ws = 0,date = new Date())=>{
+let getDeadline = (e,ws,date)=>{
   return {text: date>0?dow(e,ws,date):NO_DEADLINE, date:date>0?(ws?getDayOfWeekAfterWeeks(date,e,ws):getNextDayOfWeek(date,e)):-1};
 }
 

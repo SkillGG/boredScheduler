@@ -6,7 +6,7 @@ const {_new} = require("./new.js");
 const {getNextDayOfWeek,getDayOfWeekAfterWeeks,dow,gdt} = require("./datefn.js");
 const {Site} = require("./site.js");
 const {ondone, onrevoke} = require("./onmessage.js")(SeriesData);
-const {RXG} = require("./regexs.js");
+const {RGX} = require("./regexs.js");
 require("./keep-alive.js")();
 
 const Roles = {

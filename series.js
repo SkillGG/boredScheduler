@@ -52,7 +52,9 @@ let loadDBData = async ()=>{
         name:1,
         chapters:1,
         current:1,
-        schedule:1
+        schedule:1,
+        siteName:1,
+        dexID:1
       };
       let cur = await coll.find({id:{$gt:0}},{sort:{id:1}, projection});
       await cur.forEach(e=>xxinput.push(e));

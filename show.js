@@ -289,7 +289,7 @@ let showChapterData = async (sdata, chdata, channel)=>{
   chdata.status.forEach((st,i)=>{
     console.log(chdata.startDate, sDate);
       let Deadline = getDeadline((sdata.schedule||{dows:[]}).dows[i],chdata.weekSkip||false,sDate);
-      let DeadText, DoneText = "DONE";
+      let DeadText, DoneText = DONE;
       if(Deadline.text!=NO_DEADLINE && Deadline.date-(new Date()) < 0)
         DeadText = DEAD_after.replace()
       else
@@ -304,8 +304,12 @@ let showChapterData = async (sdata, chdata, channel)=>{
           break;
           case "rl":
             DoneText = "";
-            if(st.dexid)
-              DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid})`;
+            if(st.dexid){
+              if(typeof st.dexid === "string")
+                DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid})`;
+              else
+                DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid.id}) by ${st.dexid.by}`
+            }
             else 
               DoneText = DONE;
           break;
@@ -328,9 +332,12 @@ let showSeriesData = async (sdata,channel, start)=>{
   console.log("Showing series");
   await clearEmbeds();
   let embedAll = [
+    
+  ];
+  channel.send(
     new Discord.MessageEmbed().setTitle(`${sdata.getName()}(#${sdata.id}) ${(sdata.ceased?"~~Ceased~~":"On-going")}`)
     .addField(`Chapters:`,` ${start}-${end}`,true).setFooter(`series\u200b${sdata.id}${"\u3000".repeat(125)}.`).setColor("#0000ff")
-  ];
+  ).then(m=>{embeds.push(m);})
   let scodes = sdata.statusCodes||defSC;
   sdata.chapters.forEach((e,chi,cha)=>{
     if(parseInt(e.id) < parseInt(start) || parseInt(e.id) > parseInt(end)) return;
@@ -352,7 +359,7 @@ let showSeriesData = async (sdata,channel, start)=>{
     e.status.forEach((st,i)=>{
       console.log(sDate);
       let Deadline = getDeadline((sdata.schedule||{dows:[]}).dows[i],e.weekSkip||false,sDate);
-      let DeadText, DoneText = "DONE";
+      let DeadText, DoneText = DONE;
       if(Deadline.text!=NO_DEADLINE && Deadline.date-(new Date()) < 0)
         DeadText = `**~~Deadline: ${Deadline.text}~~**`
       else
@@ -367,8 +374,23 @@ let showSeriesData = async (sdata,channel, start)=>{
           break;
           case "rl":
             DoneText = "";
-            if(st.dexid)
-              DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid})`;
+            if(st.dexid || st.dexids){
+              if(st.dexids){
+                DoneText = `Released on MangaDex by `;
+                st.dexids.forEach(e=>{
+                  if(e.by !== null)
+                    DoneText += `[${e.by}](https://mangadex.org/chapter/${e.id}) / `;
+                  else
+                    DoneText += `**[US](https://mangadex.org/chapter/${e.id})**\nor\n`;
+                });
+                DoneText = DoneText.slice(0,-3);
+              }else{ 
+                if(typeof st.dexid === "string")
+                  DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid})`;
+                else
+                  DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${st.dexid.id}) by ${st.dexid.by}`
+              }
+            }
             else 
               DoneText = DONE;
           break;
@@ -377,10 +399,8 @@ let showSeriesData = async (sdata,channel, start)=>{
       chapterEmbed.fields.push(newf(scodes[i],`${st?DoneText:DeadText}`,true));
     });
     chapterEmbed.setFooter(`chapter\u200b${sdata.id}:${e.id}${"\u3000".repeat(125)}.`)
-    embedAll.push(chapterEmbed);
-  });
-  embedAll.forEach((e,i,a)=>channel.send(e).then(m=>{embeds.push(m);}));
-}
+    channel.send(chapterEmbed).then(m=>{embeds.push(m);})
+  });}
 
 module.exports.show = {
   help,error,debug,
