@@ -24,6 +24,7 @@ let loadDBData = async ()=>{
         let coll = db.collection("series");
         for(let i = 0; i < SeriesData.data.series.length; i++){
           let series = SeriesData.data.series[i];
+          console.log("Updating", series.name);
           Site.update(series);
           await coll.updateOne({id:series.id},{$set:series},{upsert:true});
         }

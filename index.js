@@ -164,7 +164,7 @@ Command:` + `
           // new *
         break;
         case "change":
-          // change *
+          // 
         break;
         case "cease":
           // cease *

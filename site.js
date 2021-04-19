@@ -38,7 +38,7 @@ let sendDataToServer = (data)=>{
 			(res)=>{
 				res.on("data", (data)=>{
 					if(`${data}`.charAt(0) === "0"){
-						r("Succesfully updated!");
+						r("Succesfully updated!\n" + `\n===\n\n${data}\n\n====`);
 					} else {
 						q("Something went wrong!\n" + `\n====\n\n${data}\n\n====`);
 					}
@@ -76,7 +76,21 @@ let updateSeries = (series)=>{
 			if(parseInt(e.volume) > lv)
 				lv = parseInt(e.volume);
 		});
+		console.log("Found last volume of ", series.name , lv, series.chapters);
 		return lv;
+	}
+
+	let getLastDoneVolume = ()=>{
+		let r = null;
+		let n = parseInt(getLastVolume());
+		while(!r){
+			if(n === -1)
+				return null;
+			if(series.chapters.whereOne(c=>(c.volume==n)&&(c.status.reduce((a,b)=>(a+!!b))>1)))
+				r = n;
+			n--;
+		}
+		return r;
 	}
 
 	function* nextVolume(s){
@@ -171,6 +185,9 @@ let updateSeries = (series)=>{
 	}
 
 	data.html += getVolumesHTML();
+
+	data.volume = `${getLastDoneVolume()||"null"};`;
+
 
 	data.html = `<manga name='${series.name.join?series.name[0]:series.name}' dexid="${series.dexID}">
 ${data.html}

@@ -40,6 +40,7 @@ const MongoClient = require('mongodb').MongoClient;
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"24"}]});
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"25"}]});
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"26"}]});
+			await coll.updateOne({id:3}, {$set:{"chapters.$[chap].volume":"1"}},{arrayFilters:[{"chap.id":"1"}]});
 			console.log("done")
 		}catch(err){
 			console.error(err.stack);
