@@ -1,7 +1,7 @@
 const Discord = require("discord.js");
-const {getDeadline, getNextDayOfWeek,getDayOfWeekAfterWeeks,dow,gdt,NO_DEADLINE} = require("./datefn.js");
+const { getDeadline, getNextDayOfWeek, getDayOfWeekAfterWeeks, dow, gdt, NO_DEADLINE } = require("./datefn.js");
 
 // TODO: change
-let changeSeries = ()=>{}
+let changeSeries = () => { }
 
-module.exports.change = {changeSeries};
+module.exports.change = { changeSeries };

@@ -109,79 +109,94 @@ let updateSeries = (series)=>{
 
 	let redos = 0;
 
+	let getMissingsAndLvl = status=>{
+		const missStr = ["missedTL", "missedPR", "missedCL", "missedRD", "missedTS", ""];
+		let lvl = 0;
+		status.reduce((p,c,i)=>{
+			if(e)
+				lvl = i+1;
+			if(lvl > 2)
+				lvl--;
+			if(!c)
+				if(missStr[i])
+					p += ` ${missStr[i]}='true'`;
+		});
+		return {lastVolume:lvl, missings:miss};
+	}
+
+	// get status of 0-stated series
+	let getUndoneStatus = (status, chapter)=>{
+		let {missings,lastVolume} = getMissings(status);
+		//console.log(`Chapter ${chapter.id} lvl: ${lvl}`, chapter.status);
+		if(lastVolume > 0)
+			return `status="3" s3="${lastVolume}"${missings}`;
+		else {
+			return `status="${chapter.released?"2":"1"}"${chapter.info?` sstat=${chapter.info}`:""}`;
+		}
+	}
+
+	// get status of Done series
+	let getDoneStatus = (status,donestatus)=>{
+		if(donestatus.dexid){			
+			if(typeof donestatus.dexid === "string"){
+				return `status="4" dexid='${donestatus.dexid}'`;
+			}
+			if(typeof donestatus.dexid !== "object")
+				return null;
+			return `status="5" dexid="${donestatus.dexid.id}" by="${donestatus.dexid.by}"`;	
+		}
+		if(donestatus.dexids){
+			if(!(typeof donestatus.dexids === "object") && !(donestatus.dexids instanceof Array))
+				return null;
+			if(donestatus.dexids.whereOne(f=>f.by===null)){
+				let otherGroupStatus = donestatus.dexids.where(f=>f.by!==null);
+				let oid = `${otherGroupStatus.convertAll(c=>`${c.id},`).join("").slice(0,-1)}`;
+				let oby = `${otherGroupStatus.convertAll(c=>`${c.by} / `).join("").slice(0,-3)}`;
+				let bntRedoStatus = donestatus.dexids.whereOne(f=>f.by===null);
+				let firstDOMChapter = `status='5' dexids="${oid}" by="${oby}"`;
+				if(bntRedoStatus.id)
+					return {redoDOMChapter:`status='4' dexid='${n.id}'`, firstDOMChapter};
+				return {
+					redoDOMChapter:
+						getStatus({status:[...status,0], released: chapter.released, info:chapter.info}),
+					firstDOMChapter
+				};
+			}
+			let all = donestatus.dexids.where(f=>f.by!==null);
+			let ids = `${all.convertAll(c=>`${c.id},`).join("").slice(0,-1)}`;
+			let bys = `${all.convertAll(c=>`${c.by} / `).join("").slice(0,-3)}`;
+			return `status='5' dexids="${ids}" by="${bys}"`;
+		}
+			
+	}
+
 	let getStatus = chapter=>{
-		const missings = ["missedTL", "missedPR", "missedCL", "missedRD", "missedTS", ""];
 		const status = chapter.status.slice(0,6);
 		const donestatus = chapter.status.slice(6)[0];
 		if(!donestatus){
-			let lvl = 0, s = "";
-			status.forEach((e,i)=>{
-				if(e)
-					lvl = i+1;
-				if(lvl > 2)
-					lvl--;
-				if(!e)
-					if(missings[i])
-						s+=` ${missings[i]}='true'`;
-			});
-			//console.log(`Chapter ${chapter.id} lvl: ${lvl}`, chapter.status);
-			if(lvl > 0)
-				return `status="3" s3="${lvl}"${s}`;
-			else {
-				return `status="${chapter.released?"2":"1"}"${chapter.info?` sstat=${chapter.info}`:""}`;
-			}
+			return getUndoneStatus(status, chapter);
 		}else {
-			if(donestatus.dexid){
-				if(typeof donestatus.dexid === "string"){
-					return `status="4" dexid='${donestatus.dexid}'`;
-				}
-				if(typeof donestatus.dexid !== "object")
-					return null;
-				return `status="5" dexid="${donestatus.dexid.id}" by="${donestatus.dexid.by}"`;
-			}
-			if(donestatus.dexids){
-				if(!(typeof donestatus.dexids === "object") && !(donestatus.dexids instanceof Array))
-					return null;
-				if(donestatus.dexids.whereOne(f=>f.by===null)){
-					let o = donestatus.dexids.where(f=>f.by!==null);
-					let oid = `${o.convertAll(c=>`${c.id},`).join("").slice(0,-1)}`;
-					let oby = `${o.convertAll(c=>`${c.by} / `).join("").slice(0,-3)}`;
-					let n = donestatus.dexids.whereOne(f=>f.by===null);
-					let retx = {s1:`status='5' dexids="${oid}" by="${oby}"`};
-					if(n.id){
-						retx.so = `status='4' dexid='${n.id}'`;
-						return retx;
-					}
-					retx.so = getStatus({status:[...status,0], released: chapter.released, info:chapter.info});
-					return retx;
-				}
-				let all = donestatus.dexids.where(f=>f.by!==null);
-				let ids = `${all.convertAll(c=>`${c.id},`).join("").slice(0,-1)}`;
-				let bys = `${all.convertAll(c=>`${c.by} / `).join("").slice(0,-3)}`;
-				return `status='5' dexids="${ids}" by="${bys}"`;
-			}
+			return getDoneStatus(status, donestatus);
 		}
 	}
 
 	let getVolumesHTML = ()=>{
-		let h = "";
-		let x = null;
-		let z = nextVolume(series);
-		while(!(x = z.next()).done){
-			x = x.value;
-			if(x[0].volume)
-				h += `\t<volume volid=${x[0].volume}>\n`;
-			x.forEach(e=>{
-				let status = getStatus(e);
-				if(status.s1)
-					h += `\t${e.volume?"\t":""}<chapter ${status.s1} label='${e.name||""}' chid='${parseInt(series.id)*1000+parseInt(e.id)}' ${x.volume?`volume='${e.volume||""}'`:""}>${e.id}</chapter>\n\t${e.volume?"\t":""}<chapter label="(BNT Redo)" chn="${e.id}" ${status.so} chid="${parseInt(series.id)*2000+parseInt(redos++)}"></chapter>`;
+		let returnHTML = "", chaptersFromVolume = null, volumeGenerator = nextVolume(series);
+		while(!(chaptersFromVolume = volumeGenerator.next()).done){
+			chaptersFromVolume = chaptersFromVolume.value;
+			if(chaptersFromVolume[0].volume)
+				returnHTML += `\t<volume volid=${chaptersFromVolume[0].volume}>\n`;
+			chaptersFromVolume.forEach(chapter=>{
+				let status = getStatus(chapter);
+				if(status.firstDOMChapter)
+					returnHTML += `\t${chapter.volume?"\t":""}<chapter ${status.s1} label='${chapter.name||""}' chid='${parseInt(series.id)*1000+parseInt(chapter.id)}' ${chaptersFromVolume.volume?`volume='${chapter.volume||""}'`:""}>${chapter.id}</chapter>\n\t${chapter.volume?"\t":""}<chapter label="(BNT Redo)" chn="${chapter.id}" ${status.redoDOMChapter} chid="${parseInt(series.id)*2000+parseInt(redos++)}"></chapter>`;
 				else
-					h += `\t${e.volume?"\t":""}<chapter ${status} label='${e.name||""}' chid='${parseInt(series.id)*1000+parseInt(e.id)}' ${x.volume?`volume='${e.volume||""}'`:""}>${e.id}</chapter>\n`;
+					returnHTML += `\t${chapter.volume?"\t":""}<chapter ${status} label='${chapter.name||""}' chid='${parseInt(series.id)*1000+parseInt(chapter.id)}' ${chaptersFromVolume.volume?`volume='${chapter.volume||""}'`:""}>${chapter.id}</chapter>\n`;
 			});
-			if(x[0].volume)
-				h += `\t</volume>\n`;
+			if(chaptersFromVolume[0].volume)
+				returnHTML += `\t</volume>\n`;
 		}
-		return h;
+		return returnHTML;
 	}
 
 	data.html += getVolumesHTML();
@@ -197,4 +212,8 @@ ${data.html}
 
 }
 
-module.exports.Site = {send, check:checkIfSiteIsUp, update:updateSeries};
+let updateMore = (list)=>{
+
+}
+
+module.exports.Site = {send, check:checkIfSiteIsUp, update:updateSeries, updateAll: updateMore};

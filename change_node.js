@@ -1,10 +1,10 @@
 const MongoClient = require('mongodb').MongoClient;
-(async ()=>{
-	await new Promise(async (res,req)=>{
+(async () => {
+	await new Promise(async (res, req) => {
 		// save data to DB
 		const uri = "mongodb+srv://boredSchedulerBot:Samnasamja1@boredscheduler.mrpmz.mongodb.net/boredScheduler?retryWrites=true&w=majority";
 		const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-		try{
+		try {
 			await client.connect();
 			let db = client.db("scheduler");
 			let coll = db.collection("series");
@@ -34,17 +34,17 @@ const MongoClient = require('mongodb').MongoClient;
 			// await coll.updateOne({id:3}, {$set:{"dexID":"56318"}});
 			// await coll.updateOne({id:4}, {$set:{"dexID":"26793"}});
 			// await coll.updateOne({id:4},
-				// {$set:{"chapters.$[chap].status.6":{dexids:[{id:"1173461",by:null},{id:"974322",by:"Murdoch Murdoch Scans"}, {id:"833289", by:"no group"}]}}},
-				// {arrayFilters:[{"chap.id":"21"}]});
+			// {$set:{"chapters.$[chap].status.6":{dexids:[{id:"1173461",by:null},{id:"974322",by:"Murdoch Murdoch Scans"}, {id:"833289", by:"no group"}]}}},
+			// {arrayFilters:[{"chap.id":"21"}]});
 			// Mark as released
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"24"}]});
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"25"}]});
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"26"}]});
-			await coll.updateOne({id:3}, {$set:{"chapters.$[chap].volume":"1"}},{arrayFilters:[{"chap.id":"1"}]});
+			await coll.updateOne({ id: 3 }, { $set: { "chapters.$[chap].volume": "1" } }, { arrayFilters: [{ "chap.id": "1" }] });
 			console.log("done")
-		}catch(err){
+		} catch (err) {
 			console.error(err.stack);
-		}finally {
+		} finally {
 			client.close();
 		}
 		res();
