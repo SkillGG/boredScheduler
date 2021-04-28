@@ -1,3 +1,4 @@
+require("dotenv").config();
 // My files
 const {SeriesData} = require("./series.js");
 const {show,newf,newfb} = require("./show.js");
@@ -38,7 +39,6 @@ const NOMENTION = false;
 // Discord.js
 const Discord = require("discord.js");
 const client = new Discord.Client();
-require("dotenv").config();
 client.login(process.env.TOKEN);
 
 client.on('rateLimit', (info) => {
