@@ -1,0 +1,2 @@
+#!/bin/bash
+tsc change_node.ts ; node change_node.js
