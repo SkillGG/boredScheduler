@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es2016",
+        "jsx": "preserve",
+        "strictFunctionTypes": true,
+        "sourceMap": true,
+        "outDir":"./out"
+    },
+    "exclude":[
+        "node_modules"
+    ],
+    "include": [
+        "src/**/*.ts"
+    ]
+}

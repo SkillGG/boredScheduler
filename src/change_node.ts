@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({path:".env"});
 
 import fs = require("fs");
 import { MongoClient } from 'mongodb';
@@ -46,10 +46,14 @@ import { MongoClient } from 'mongodb';
 			// await coll.updateOne({id:1},{$set:{"chapters.$[chap].released":true}},{arrayFilters:[{"chap.id":"26"}]});
 			//await coll.updateOne({ id: 3 }, { $set: { "chapters.$[chap].volume": "1" } }, { arrayFilters: [{ "chap.id": "1" }] });
 
+			// await coll.updateOne({id: 1}, {$set: {schedule:null} });
+
 			/* Set all ReleaseStatus to null */
 			// backup
 			// let failsafe = JSON.stringify(await coll.find({}).toArray());
-			// fs.writeFileSync("./database.json", failsafe);
+			// fs.writeFileSync("./_pretest_database.json", failsafe);
+
+			//console.log(fs.readFileSync("./_pretest_database.json"));
 			// restore
 			// let x = JSON.parse(fs.readFileSync("./failsafe.json"));
 			// await coll.deleteMany({});

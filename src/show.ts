@@ -1,70 +1,95 @@
-const Discord = require("discord.js");
-const { getDeadline, getNextDayOfWeek, getDayOfWeekAfterWeeks, dow, gdt, NO_DEADLINE } = require("./datefn.js");
+import {
+  NO_DEADLINE,
+  defaultReactions, defaultStatusCodes,
+  PARTIAL, ALMOST,
+  DEADLINE_after, DEADLINE_before,
+  DONE,
+  cancelReaction
+} from "./strings";
+
+import Discord = require("discord.js");
+import { getDeadline, getUTCDate } from "./datefn";
+import { discordClient, isTextChannel } from "./DiscordIDs";
+import { Chapter, DatabaseSeriesData, getFloatFromSN, getIntFromSN, isBreakableStatus, SData, Series } from "./series";
 // Embed Fields
-let newf = (n, v, f) => { let x = { name: n || "", value: v || "" }; if (f !== undefined) x.inline = f; return x; }
-let newbf = f => newf("\u200b", "\u200b", f);
+let newField = (n: string, v: string, f?: boolean): Discord.EmbedField => { return { name: n || "", value: v || "", inline: f } };
+// let newEmptyField = f => newField("\u200b", "\u200b", f);
 
-let debug = () => {
-  console.log(ReactionData, embeds.map(e => ({ id: e.id, text: e.content, embed: e.embeds[0].title })));
+let debug = (): void => {
+  console.log("Debug: ", ReactionData, embeds.map(e => ({ id: e.id, text: e.content, embed: e.embeds[0].title })));
 }
 
-const PARTIAL = "__We're half way!__";
-const ALMOST = "__We're almost there!__";
-const DONE = ":o:";
-const DEADLINE_after = ":x:\n**~~Deadline: $date~~**";
-const DEADLINE_before = ":x:\nDeadline: $date";
+type ErrorMessage = {
+  msg?: string,
+  command?: string,
+  timeout?: number
+}
 
-let error = (o, channel) => {
+let error = (o: ErrorMessage, channel: Discord.Channel) => {
   if (!channel) return console.error("chapter not specified!");
-  let e = new Discord.MessageEmbed()
-    .setTitle("Error").setColor("#ff0000")
-    .addField("Message", `${o.msg || "Undefined error"}`)
-    .addField(`Command`, `${o.command || "======="}`);
-  channel.send(e).then(e => e.delete({ timeout: o.timeout || 2000 }));
+  if (isTextChannel(channel)) {
+    let e = new Discord.MessageEmbed()
+      .setTitle("Error").setColor("#ff0000")
+      .addField("Message", `${o.msg || "Undefined error"}`)
+      .addField(`Command`, `${o.command || "======="}`);
+    channel.send(e).then(e => e.delete({ timeout: o.timeout || 2000 }));
+  }
 }
 
-const defSC = ["TL", "PR", "CL", "RD", "TS", "QC", "RL"];
-const defReact = ["🇦", "🇧", "🇨", "🇩", "🇪", "🇫", "🇬", "🇭", "🇮", "🇯", "🇰", "🇱", "🇲"];
+let embeds: Discord.Message[] = [];
 
-let embeds = [];
-let clearEmbeds = async () => {
+let clearEmbeds = async (): Promise<void> => {
   for (let i = embeds.length - 1; i >= 0; i--) {
     if (!embeds[i].deleted) {
       console.log("Clearing embed " + i, embeds[i].id);
       await embeds[i].delete().catch(console.error);
     }
   }
-  if (ReactionData.messageID && ReactionData.channelID)
-    client.channels.fetch(ReactionData.channelID).then(ch => ch.messages.fetch(ReactionData.messageID).then(m => m.delete()));
+  if (ReactionData.messageID && ReactionData.messageID)
+    discordClient.channels.fetch(ReactionData.channelID).then(ch =>
+      isTextChannel(ch) && (ch.messages.fetch(ReactionData.messageID).then(m => m.delete()))
+    );
   embeds = [];
 }
 
+interface Choosing {
+  series: string;
+  i: number;
+}
 
-let logMessage = async (channel, msgData, client) => {
+interface MSGData {
+  content: string;
+  user: Discord.User;
+  log: boolean;
+  choose?: Choosing;
+}
+
+let logMessage = async (channel: Discord.Channel | string, msgData: MSGData): Promise<void> => {
   if (!msgData.log || !channel)
     return;
-  if (typeof channel === "string" || channel instanceof String) {
+  if (typeof channel === "string") {
     // channel string
-    if (!client) return;
-    channel = await client.channels.fetch(channel);
+    if (!discordClient) return;
+    channel = await discordClient.channels.fetch(channel);
   }
-  logMsg = `Bot activity by ${msgData.user}!
+  if (!isTextChannel(channel)) return;
+  let logMsg = `Bot activity by ${msgData.user}!
 Command:
 >   *__${msgData.content}__*`;
   if (msgData.choose) {
-    console.log(msgData.choose);
+    console.log("Choice: ", msgData.choose);
     logMsg += `\n${msgData.user} chose: ${msgData.choose.series.split(",")[msgData.choose.i]}
 Possible choices: ${msgData.choose.series.replace(",", ", ")}`;
   }
   channel.send(logMsg);
 }
 
-let help = async (channel, command) => {
-  if (!channel) return console.error("channel not specified!");
+let help = async (channel: Discord.Channel, command: number): Promise<void> => {
+  if (!channel || !isTextChannel(channel)) return console.error("channel not specified!");
   await clearEmbeds();
   if (!command) command = 1;
   let newEmbed = new Discord.MessageEmbed();
-  switch (parseInt(command)) {
+  switch (command) {
     case 1:
       // show
       newEmbed.setTitle("Help for `show`")
@@ -134,14 +159,19 @@ revoke ope 4 RL 114189 // revoke release of OpeKan 4
   channel.send(newEmbed).then(e => embeds.push(e));
 }
 
-let ReactionData = { locked: !0 };
+interface ReactionIDs {
+  locked: boolean
+  response: Discord.MessageReaction
+  messageID?: string
+  channelID?: string
+}
 
-let showReactionSeriesSelect = (channel, series, custom) => {
-  if (!channel) return console.error("Channel not specified!");
-  if (!(series instanceof Array)) return null;
-  if (custom && !(custom instanceof Array)) custom = null;
+let ReactionData: ReactionIDs = { locked: !0, response: null };
+
+let showReactionSeriesSelect = (channel: Discord.Channel, series: Series[], custom?: string[]): Promise<number> => {
+  if (!channel || !isTextChannel(channel)) return console.error("Channel not specified!"), null;
   return new Promise(async (s, q) => {
-    let reactionTable = custom || defReact;
+    let reactionTable = custom || defaultReactions;
     reactionTable.splice(series.length);
     let Embed = new Discord.MessageEmbed().setTitle("Found multiple titles!");
     series.forEach((e, i) => {
@@ -149,11 +179,11 @@ let showReactionSeriesSelect = (channel, series, custom) => {
         .addField(`${e.getName()} (${e.id})`, `${reactionTable[i]}`, !0)
     });
     await channel.send(Embed).then(async message => {
-      console.log(message.id);
-      series.forEach((e, i) => {
+      console.log("messageID", message.id);
+      series.forEach((_e, i) => {
         message.react(reactionTable[i]);
       });
-      message.react("❌");
+      message.react(cancelReaction);
       ReactionData.locked = false;
       ReactionData.messageID = message.id;
       ReactionData.channelID = message.channel.id;
@@ -163,11 +193,11 @@ let showReactionSeriesSelect = (channel, series, custom) => {
           let interval =
             setInterval(_ => {
               if (ReactionData.response) {
-                if ((index = reactionTable.indexOf(ReactionData.response._emoji.name)) !== -1) {
+                if ((index = reactionTable.indexOf(ReactionData.response.emoji.name)) !== -1) {
                   clearInterval(interval);
                   ss(ReactionData.response);
                 } else {
-                  if (ReactionData.response._emoji.name === "❌") {
+                  if (ReactionData.response.emoji.name === "❌") {
                     ss("cancel");
                   } else {
                     error({ msg: "Wrong reaction!", command: `${ReactionData.response.emoji.name}` }, channel);
@@ -182,7 +212,7 @@ let showReactionSeriesSelect = (channel, series, custom) => {
       ReactionData.messageID = null;
       ReactionData.channelID = null;
       message.delete();
-      console.log(ReactionData);
+      console.log("ReactionData:", ReactionData);
       if (gotReaction === "cancel")
         q("User canceled");
       if (index || index === 0)
@@ -193,87 +223,103 @@ let showReactionSeriesSelect = (channel, series, custom) => {
   });
 }
 
-let LASTDATA = null;
+interface LoadLastData {
+  sdata?: Series
+  chdata?: Chapter
+  data?: DatabaseSeriesData
+  ceased?: boolean
+  start?: number
+}
 
-let showLast = async (channel, data) => {
+interface LastShowData extends LoadLastData {
+  t: number
+}
+
+let LASTDATA: LastShowData = null;
+
+let showLast = async (channel: Discord.Channel, data?: LoadLastData) => {
   console.log("showing last!");
   if (!LASTDATA) {
     console.log("no LASTDATA!");
-    ret = await showAllData(data.data, channel, data.ceased);
+    if (!data) return;
+    await showAllData(data.data, channel, data.ceased);
   } else {
     switch (LASTDATA.t) {
       case 0:
-        ret = await showAllData(data.data || LASTDATA.data, channel, data.ceased || LASTDATA.ceased);
+        await showAllData(data.data || LASTDATA.data, channel, data.ceased || LASTDATA.ceased);
         break;
       case 1:
-        ret = await showChapterData(data.sdata || LASTDATA.sdata, data.chdata || LASTDATA.chdata, channel);
+        await showChapterData(data.sdata || LASTDATA.sdata, data.chdata || LASTDATA.chdata, channel);
         break;
       case 2:
-        ret = await showSeriesData(data.sdata || LASTDATA.sdata, channel, data.start || LASTDATA.start);
+        await showSeriesData(data.sdata || LASTDATA.sdata, channel, data.start || LASTDATA.start);
         break;
     }
   }
 }
 
-let showAllData = async (data, channel, ceased) => {
-  if (!channel) return console.error("chapter not specified!");
+let showAllData = async (data: DatabaseSeriesData, channel: Discord.Channel, ceased?: boolean) => {
+  if (!channel || !isTextChannel(channel)) return console.error("chapter not specified!");
   if (!data) return console.error("Data not specified!");
   console.log("Showing all!");
-  LASTDATA = { ch: channel, t: 0, data, ceased };
+  LASTDATA = { t: 0, data: data, ceased };
   //console.log("data",data);
   await clearEmbeds();
-  data.series.forEach((e, i, a) => {
+  data.series.forEach((e, _i) => {
     if (!ceased && e.ceased) return;
     let newEmbed = new Discord.MessageEmbed().setTitle(`${e.getName()}`).setColor("#0000ff");
-    let scodes = e.statusCodes || defSC;
+    let scodes = e.statusCodes || defaultStatusCodes;
     let curch = e.chapters.getCurrent();
     if (curch) {
       let sDate = new Date(curch.startDate);
-      newEmbed.fields.push(newf(`${e.getName()}(#${e.id})`, `${curch.volume ? `Vol.${curch.volume}` : ""} Ch.${curch.id} ${curch.name ? `**"${curch.name}"**` : ""}`, false));
-      newEmbed.fields.push(newf(`Start date`, gdt(sDate, true)));
+      newEmbed.fields.push(newField(`${e.getName()}(#${e.id})`, `${curch.volume ? `Vol.${curch.volume}` : ""} Ch.${curch.id} ${curch.name ? `**"${curch.name}"**` : ""}`, false));
+      newEmbed.fields.push(newField(`Start date`, getUTCDate(sDate, true)));
       sDate.setDate(sDate.getDate() + 1);
       if (curch.late)
-        sDate.setDate(sDate.getDate() - (parseInt(curch.late) || 0));
+        sDate.setDate(sDate.getDate() - (curch.late || 0));
       curch.status.forEach((x, z) => {
-        let Deadline = getDeadline((e.schedule || { dows: [] }).dows[z], curch.weekSkip || false, sDate);
+        let Deadline = getDeadline((e.schedule || { dows: [] }).dows[z], sDate, curch.weekSkip || null);
         let DeadText, DoneText = DONE;
-        if (Deadline.text != NO_DEADLINE && Deadline.date - (new Date()) < 0)
+        if (Deadline.text != NO_DEADLINE && Deadline.date.getTime() - (new Date().getTime()) < 0)
           DeadText = DEADLINE_after.replace("$date", `${Deadline.text}`);
         else
           DeadText = DEADLINE_before.replace("$date", `${Deadline.text}`);
         if (!!x && typeof x === "object") {
-          // TODO: get done properties
+          // TODO: more done properties
           switch (scodes[z].toLowerCase()) {
             case "cl":
             case "rd":
+              if (!isBreakableStatus(x)) break;
               if (x.almost || x.partial) {
                 DoneText = `${x.almost ? ALMOST : x.partial ? PARTIAL : "huh?"}\n${DeadText}`;
               }
               break;
             case "rl":
+              if (isBreakableStatus(x)) break;
               if (x.dexid)
                 DoneText = `Released on [MangaDex](https://mangadex.org/chapter/${x.dexid})`;
               break;
           }
         }
-        newEmbed.fields.push(newf(`${scodes[z]}:`, `${x ? DoneText : DeadText}`, true));
+        newEmbed.fields.push(newField(`${scodes[z]}:`, `${x ? DoneText : DeadText}`, true));
       });
       newEmbed.setFooter(`chapter\u200b${e.id}:${curch.id}${"\u3000".repeat(125)}.`)
     }
     channel.send(newEmbed).then(m => { embeds.push(m); })
   });
 }
-let showChapterData = async (sdata, chdata, channel) => {
-  if (!channel) return console.error("chapter not specified!");
+
+let showChapterData = async (sdata: Series, chdata: Chapter, channel: Discord.Channel) => {
+  if (!channel || !isTextChannel(channel)) return console.error("channel not specified!");
   if (!sdata || !chdata) return console.error("data not specified!");
-  LASTDATA = { ch: channel, t: 1, sdata, chdata };
+  LASTDATA = { t: 1, sdata, chdata };
   console.log("Showing chapter");
   await clearEmbeds();
   let newembed =
     new Discord.MessageEmbed()
       .setTitle(`${sdata.getName()} ${chdata.volume ? `Vol.${chdata.volume} ` : ``}Ch.${chdata.id}`).setColor("#0000ff")
       .setFooter(`chapter ${sdata.id}:${chdata.id}`);
-  let scodes = sdata.statusCodes || defSC;
+  let scodes = sdata.statusCodes || defaultStatusCodes;
   let sDate;
   if (chdata.startDate) {
     sDate = new Date(chdata.startDate);
@@ -281,28 +327,29 @@ let showChapterData = async (sdata, chdata, channel) => {
   } else {
     sDate = new Date(chdata.sDate || -1);
   }
-  console.log(chdata, sDate)
+  console.log("chData: ", chdata, "sDate:", sDate)
   if (sDate >= 0 && chdata.late)
-    sDate.setDate(sDate.getDate() - (parseInt(chdata.late) || 0));
+    sDate.setDate(sDate.getDate() - chdata.late);
   if (sDate < 0)
     sDate = -1;
   chdata.status.forEach((st, i) => {
-    console.log(chdata.startDate, sDate);
-    let Deadline = getDeadline((sdata.schedule || { dows: [] }).dows[i], chdata.weekSkip || false, sDate);
-    let DeadText, DoneText = DONE;
-    if (Deadline.text != NO_DEADLINE && Deadline.date - (new Date()) < 0)
-      DeadText = DEAD_after.replace()
+    let Deadline = getDeadline((sdata.schedule || { dows: [] }).dows[i], sDate, chdata.weekSkip);
+    let DeadText: string, DoneText = DONE;
+    if (Deadline.text != NO_DEADLINE && Deadline.date.getTime() - (new Date().getTime()) < 0)
+      DeadText = DEADLINE_after.replace("$date", Deadline.text);
     else
       DeadText = `Deadline: ${Deadline.text}`;
     if (!!st && typeof st === "object") {
       switch (scodes[i].toLowerCase()) {
         case "cl":
         case "rd":
+          if (!isBreakableStatus(st)) break;
           if (st.partial) {
             DoneText = `${PARTIAL}\n${DeadText}`;
           }
           break;
         case "rl":
+          if (isBreakableStatus(st)) break;
           DoneText = "";
           if (st.dexid) {
             if (typeof st.dexid === "string")
@@ -315,52 +362,50 @@ let showChapterData = async (sdata, chdata, channel) => {
           break;
       }
     }
-    newembed.fields.push(newf(scodes[i], `${st ? DoneText : DeadText}`, true));
+    newembed.fields.push(newField(scodes[i], `${st ? DoneText : DeadText}`, true));
   });
   channel.send(newembed).then(x => embeds.push(x));
 }
-let showSeriesData = async (sdata, channel, start) => {
-  if (!channel) return console.error("chapter not specified!");
+
+let showSeriesData = async (sdata: Series, channel: Discord.Channel, start: string | number) => {
+  if (!channel || !isTextChannel(channel)) return console.error("chapter not specified!");
   if (!sdata) return console.error("Data not specified!");
   if (!start && `${start}` !== "0") return console.error("Start not defined!");
-  if (!parseFloat(start) && `${start}` !== "0") return console.error("Start is not a number!");
-  start = parseFloat(start);
+  if (typeof start === "string" && !parseFloat(start) && `${start}` !== "0.0") return console.error("Start is not a number!");
+  start = getFloatFromSN(start);
   if (start === 0)
-    start = parseFloat(sdata.chapters.getCurrent().id) - parseInt(sdata.parent.showVal / 2);
-  end = start + sdata.parent.showVal;
-  LASTDATA = { ch: channel, t: 2, sdata, start };
+    start = parseFloat(sdata.chapters.getCurrent().id) - Math.floor(sdata.parent.showVal / 2);
+  let end = start + sdata.parent.showVal;
+  LASTDATA = { t: 2, sdata, start };
   console.log("Showing series");
   await clearEmbeds();
-  let embedAll = [
-
-  ];
   channel.send(
     new Discord.MessageEmbed().setTitle(`${sdata.getName()}(#${sdata.id}) ${(sdata.ceased ? "~~Ceased~~" : "On-going")}`)
       .addField(`Chapters:`, ` ${start}-${end}`, true).setFooter(`series\u200b${sdata.id}${"\u3000".repeat(125)}.`).setColor("#0000ff")
   ).then(m => { embeds.push(m); })
-  let scodes = sdata.statusCodes || defSC;
-  sdata.chapters.forEach((e, chi, cha) => {
-    if (parseInt(e.id) < parseInt(start) || parseInt(e.id) > parseInt(end)) return;
-    console.log("Show chapter: " + e.id, e.startDate);
-    let sDate;
-    if (e.startDate) {
-      sDate = new Date(e.startDate);
+  let scodes = sdata.statusCodes || defaultStatusCodes;
+  sdata.chapters.forEach((chapter, chi, cha) => {
+    if (parseInt(chapter.id) < getIntFromSN(start) || parseInt(chapter.id) > end) return;
+    console.log("Show chapter: " + chapter.id, chapter.startDate);
+    let sDate: Date;
+    if (chapter.startDate) {
+      sDate = new Date(chapter.startDate);
       sDate.setDate(sDate.getDate() + 1);
     } else {
-      sDate = new Date(e.sDate || -1);
+      sDate = new Date(chapter.sDate || -1);
     }
-    if (sDate > 0 && e.late)
-      sDate.setDate(sDate.getDate() - (parseInt(e.late) || 0));
-    if (sDate < 0)
-      sDate = -1;
-    let chapterEmbed = new Discord.MessageEmbed().setTitle(`${e.volume ? `Vol.${e.volume} ` : ""}Ch.${e.id}`).setColor("#0000ff");
-    chapterEmbed.fields.push(newf(`Name`, `${e.name ? e.name : "------"}`, false));
-    chapterEmbed.fields.push(newf(`Progress`, `${e.status.reduce((a, v) => a + (!!v))}/${e.status.length}`));
-    e.status.forEach((st, i) => {
-      console.log(sDate);
-      let Deadline = getDeadline((sdata.schedule || { dows: [] }).dows[i], e.weekSkip || false, sDate);
+    if (sDate.getTime() > 0 && chapter.late)
+      sDate.setDate(sDate.getDate() - chapter.late);
+    if (sDate.getTime() < 0)
+      sDate = new Date(-1);
+    let chapterEmbed = new Discord.MessageEmbed().setTitle(`${chapter.volume ? `Vol.${chapter.volume} ` : ""}Ch.${chapter.id}`).setColor("#0000ff");
+    chapterEmbed.fields.push(newField(`Name`, `${chapter.name ? chapter.name : "------"}`, false));
+    chapterEmbed.fields.push(newField(`Progress`, `${chapter.status.reduce<string>((a, v) => a + (!!v), "")}/${chapter.status.length}`));
+    chapter.status.forEach((st, i) => {
+      console.log("sDate:", sDate);
+      let Deadline = getDeadline((sdata.schedule || { dows: [] }).dows[i], sDate, chapter.weekSkip);
       let DeadText, DoneText = DONE;
-      if (Deadline.text != NO_DEADLINE && Deadline.date - (new Date()) < 0)
+      if (Deadline.text != NO_DEADLINE && Deadline.date.getTime() - (new Date().getTime()) < 0)
         DeadText = `**~~Deadline: ${Deadline.text}~~**`
       else
         DeadText = `Deadline: ${Deadline.text}`;
@@ -368,11 +413,13 @@ let showSeriesData = async (sdata, channel, start) => {
         switch (scodes[i].toLowerCase()) {
           case "cl":
           case "rd":
+            if (!isBreakableStatus(st)) break;
             if (st.partial) {
               DoneText = `${PARTIAL}\n${DeadText}`;
             }
             break;
           case "rl":
+            if (isBreakableStatus(st)) break;
             DoneText = "";
             if (st.dexid || st.dexids) {
               if (st.dexids) {
@@ -396,14 +443,14 @@ let showSeriesData = async (sdata, channel, start) => {
             break;
         }
       }
-      chapterEmbed.fields.push(newf(scodes[i], `${st ? DoneText : DeadText}`, true));
+      chapterEmbed.fields.push(newField(scodes[i], `${st ? DoneText : DeadText}`, true));
     });
-    chapterEmbed.setFooter(`chapter\u200b${sdata.id}:${e.id}${"\u3000".repeat(125)}.`)
+    chapterEmbed.setFooter(`chapter\u200b${sdata.id}:${chapter.id}${"\u3000".repeat(125)}.`)
     channel.send(chapterEmbed).then(m => { embeds.push(m); })
   });
 }
 
-module.exports.show = {
+export let show = {
   help, error, debug,
   last: showLast,
   log: logMessage,
@@ -414,6 +461,5 @@ module.exports.show = {
   ReactionData,
   clear: clearEmbeds
 };
-module.exports.newf = newf;
-module.exports.newbf = newbf;
-module.exports.defSC = defSC;
+export let newf = newField;
+export let defSC = defaultStatusCodes;
