@@ -29,7 +29,7 @@ let exitNormally = async function () {
   show.clear().then(() => process.exit()).catch(e => { console.error(e); process.exit(); });
 }
 
-console.log("Monoguri:", process.env.MONGOURI);
+// console.log("Monoguri:", process.env.MONGOURI);
 
 // on ready
 discordClient.on("ready", () => {

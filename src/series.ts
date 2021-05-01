@@ -119,7 +119,7 @@ export let loadDBData = async () => {
   }
   SeriesData.reload = async () => {
     // load data from DB
-    console.log("Series.ts Mongouri:", process.env.MONGOURI);
+    // console.log("Series.ts Mongouri:", process.env.MONGOURI);
     const uri = process.env.MONGOURI;
     const mongoClient = new Mongo.MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
     try {
