@@ -272,7 +272,7 @@ let updateMore = (list: DatabaseSeriesData) => {
 	</thead>
 	<tbody>
 	${list.series.reduce<string>((e, a: Series) => {
-		console.log(a, a.siteName, a.sitePage);
+		//console.log(a, a.siteName, a.sitePage);
 		if (a.siteName && a.sitePage) {
 			return e + `
 		<tr class='tr' sid=${a.id}>

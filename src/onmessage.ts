@@ -11,7 +11,7 @@ const NOMENTION: boolean = true;
 
 type MessageDoChange = {
   statusType: string,
-  element: number | CLRDTSStatus | ReleaseStatus,
+  newStatus: number | CLRDTSStatus | ReleaseStatus,
   foundIndex: number
 }[]
 
@@ -28,10 +28,10 @@ export let getNewDate = () => {
   return nDate;
 }
 
-export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: RegExpExecArray): Promise<ReturnOnMessage> => {
+export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: string): Promise<ReturnOnMessage> => {
   // done *
   let doneresult: RegExpExecArray;
-  if (doneresult = RGX.done.exec(msgresult[2].trim())) {
+  if (doneresult = RGX.done.exec(msgresult.trim())) {
     let dummy = false;
     if (/dummy/i.exec(doneresult[5])) {
       doneresult[5] = doneresult[5].replace(/\s*dummy\s*/i, "");
@@ -68,55 +68,54 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
             switch (sT.toUpperCase().trim()) {
               case "TL":
               case "PR":
-              case "TS":
               case "QC":
                 {
-                  let e: number;
-                  donechange = [{ statusType: sT, element: e, foundIndex: i }];
+                  donechange = [{ statusType: sT, newStatus: 1, foundIndex: i }];
                 }
                 break;
               case "CL":
               case "RD":
+              case "TS":
                 {
-                  let e: BreakableStatus;
+                  let newStatus: BreakableStatus;
                   if (rest) {
                     if (/partial/i.exec(rest)) {
-                      if (!e || typeof e !== "object")
-                        e = { partial: !0, almost: !1 };
+                      if (!newStatus || typeof newStatus !== "object")
+                        newStatus = { partial: !0, almost: !1 };
                       else
-                        e.partial = !(e.almost = !1);
+                        newStatus.partial = !(newStatus.almost = !1);
                     } else if (/almost/i.exec(rest)) {
-                      if (!(!!e && typeof e === "object"))
-                        e = { partial: !1, almost: !0 };
+                      if (!(!!newStatus && typeof newStatus === "object"))
+                        newStatus = { partial: !1, almost: !0 };
                       else
-                        e.partial = !(e.almost = !0);
+                        newStatus.partial = !(newStatus.almost = !0);
                     }
                   }
-                  donechange = [{ element: e, statusType: sT, foundIndex: i }];
+                  donechange = [{ newStatus: newStatus || 1, statusType: sT, foundIndex: i }];
                 }
                 break;
               case "CLRD":
                 {
-                  let e: CLRDTSStatus;
+                  let newStatus: CLRDTSStatus;
                   if (rest) {
                     if (/partial/i.exec(rest)) {
-                      if (!(!!e && typeof e === "object"))
-                        e = { partial: !0, almost: !1 };
+                      if (!(!!newStatus && typeof newStatus === "object"))
+                        newStatus = { partial: !0, almost: !1 };
                       else
-                        e.partial = !(e.almost = !1);
+                        newStatus.partial = !(newStatus.almost = !1);
                     } else if (/almost/i.exec(rest)) {
-                      if (!(!!e && typeof e === "object"))
-                        e = { partial: !1, almost: !0 };
+                      if (!(!!newStatus && typeof newStatus === "object"))
+                        newStatus = { partial: !1, almost: !0 };
                       else
-                        e.partial = !(e.almost = !0);
+                        newStatus.partial = !(newStatus.almost = !0);
                     }
                   }
                   let i_c = _selectS.getIndexOfStatus("CL");
                   i_c = i_c === 0 ? i_c : (i_c || -1);
                   let i_r = _selectS.getIndexOfStatus("RD");
                   i_r = i_r === 0 ? i_r : (i_r || -1);
-                  donechange = [{ statusType: "CL", foundIndex: i_c, element: e },
-                  { statusType: "RD", foundIndex: i_r, element: e }];
+                  donechange = [{ statusType: "CL", foundIndex: i_c, newStatus: newStatus },
+                  { statusType: "RD", foundIndex: i_r, newStatus: newStatus || 1 }];
                 }
                 break;
               case "RL":
@@ -141,26 +140,33 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
                     }
                     let releaseLink = (): string => {
                       if (isDexRelease(e))
-                        return `On [MangaDex](${DexChapterLink}${e.dexid})`
-                      if (isCubariRelease(e)) return `On [Cubari](${CubariChapterLink}${e.cubari})`
-                      return `On [${e.name}](${e.link})`
+                        return `On MangaDex: ${DexChapterLink}${e.dexid}`
+                      if (isCubariRelease(e)) return `On Cubari: ${CubariChapterLink}${e.cubari}`
+                      return `On ${e.name}: ${e.link}`
                     }
                     let RelMSG = await discordClient.channels.fetch(Channels.release).then(async chn => {
                       return await (chn as Discord.TextChannel)
                         .send(`${NOMENTION ? "" : _selectS.getMention()}**${_selectS.getName()} chapter ${selectC.id} released**\n${releaseLink()}`);
                     });
                     e.msgID = RelMSG.id;
+                    donechange = [{ statusType: sT, foundIndex: i, newStatus: e }];
+                    let nc = _selectS.chapters[_selectS.chapters.indexOf(selectC) + 1]
+                    if (!nc) {
+                      _selectS.finished = true;
+                      break;
+                    }
+                    _selectS.current = nc.id;
+                    selectC.sDate = selectC.startDate;
+                    selectC.startDate = null;
+                    nc.startDate = getNewDate();
+                  } else {
+                    show.error(
+                      {
+                        msg: `Incorrect site data!! Check \`done help\` for more info!`,
+                        command: `${msg.content.replace(/([\*~_`])/g, "\\$1")}`,
+                        timeout: 5000
+                      }, msg.channel);
                   }
-                  donechange = [{ statusType: sT, foundIndex: i, element: e }];
-                  let nc = _selectS.chapters[_selectS.chapters.indexOf(selectC) + 1]
-                  if (!nc) {
-                    _selectS.finished = true;
-                    break;
-                  }
-                  _selectS.current = nc.id;
-                  selectC.sDate = selectC.startDate;
-                  selectC.startDate = null;
-                  nc.startDate = getNewDate();
                 }
                 break;
             }
@@ -170,7 +176,7 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
                 if (dC.foundIndex >= 0) {
                   changed = true;
                   if (!dummy)
-                    selectC.status[dC.foundIndex] = dC.element;
+                    selectC.status[dC.foundIndex] = dC.newStatus;
                 }
               });
               if (changed) {
@@ -178,7 +184,7 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
                 // console.log(show);
                 await show.last(msg.channel, { data: SeriesData.data, sdata: _selectS, chdata: selectC });
                 let changesInfo = (e: CLRDTSStatus | ReleaseStatus): string => {
-                  if (typeof e === "object") {
+                  if (!e && typeof e === "object") {
                     if (isBreakableStatus(e))
                       return `${e.partial ? "partial" : ""}${e.almost ? "almost" : ""}`
                     if (isDexRelease(e))
@@ -193,7 +199,7 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
                   .setTitle(`${dummy ? "Dummy " : ""}Update ${_selectS.getName()}(#${_selectS.id})`)
                   .addField(
                     `${dummy ? "Dummy " : ""}Done`,
-                    `${donechange.map((a) => `${a.statusType} ${changesInfo(a.element)}`).join(",")}`
+                    `${donechange.map((a) => `${a.statusType} ${changesInfo(a.newStatus)}`).join(",")}`
                   )
                 ).then(m => m.delete({ timeout: 2500 }));
               }
@@ -231,10 +237,10 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
   }
 }
 
-export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult: RegExpExecArray): Promise<ReturnOnMessage> => {
+export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult: string): Promise<ReturnOnMessage> => {
   // revoke *
   let revokeresult: RegExpExecArray;
-  if (revokeresult = RGX.done.exec(msgresult[2].trim())) {
+  if (revokeresult = RGX.done.exec(msgresult.trim())) {
     let dummy = false;
     if (/dummy/i.exec(revokeresult[5])) {
       revokeresult[5] = revokeresult[5].replace(/\s*dummy\s*/i, "");
@@ -256,14 +262,14 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
         let _selectS: Series;
         let revokeAccept = async () => {
           console.log(`${dummy ? "Dummy revoke" : "Revoke"} for series:`, _selectS.getName(), "chapter:", sC);
-          let selectC = sC ? _selectS.chapters.get(sC) : _selectS.chapters.getBeforeCurrent();
+          let selectC = sC ? _selectS.chapters.get(sC) : _selectS.chapters.getCurrent();
           if (!selectC) {
             // ERROR: Could not find chapter
             show.error({ msg: `Could not find chapter #${sC}`, command: `revoke ${_selectS.getName()}:${sC || "<current>"}` }, msg.channel);
           } else {
             // Found chapter
-            let revokechange = null;
-            let e = 0;
+            let revokechange: MessageDoChange;
+            let defNS = 0;
             let i = _selectS.getIndexOfStatus(sT);
             i = i === 0 ? 0 : (i || -1);
             // TODO: change switch to regex
@@ -275,9 +281,10 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
               case "TS":
               case "QC":
               case "CL":
-                revokechange = [{ x: sT, i, e }];
+                revokechange = [{ statusType: sT, foundIndex: i, newStatus: defNS }];
                 break;
               case "RL": {
+                selectC = _selectS.chapters.getBeforeCurrent();
                 let RM = "";
                 if (selectC.status[6] && typeof selectC.status[6] == "object")
                   RM = selectC.status[6].msgID;
@@ -287,7 +294,7 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
                       (c as Discord.TextChannel).messages.fetch(RM)
                         .then(m => m.delete()).catch(console.error);
                     });
-                revokechange = [{ x: sT, i, e }];
+                revokechange = [{ statusType: sT, foundIndex: i, newStatus: defNS }];
                 _selectS.current = selectC.id;
                 selectC.startDate = selectC.sDate || getNewDate();
                 break;
@@ -297,17 +304,17 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
                 i_c = i_c === 0 ? i_c : (i_c || -1);
                 let i_r = _selectS.getIndexOfStatus("CL");
                 i_r = i_r === 0 ? i_r : (i_r || -1);
-                revokechange = [{ x: "CL", i: i_c, e },
-                { x: "RD", i: i_r, e }];
+                revokechange = [{ statusType: "CL", foundIndex: i_c, newStatus: defNS },
+                { statusType: "RD", foundIndex: i_r, newStatus: defNS }];
                 break;
             }
             if (revokechange) {
               let changed = false;
               revokechange.forEach(dC => {
-                if (dC.i >= 0) {
+                if (dC.foundIndex >= 0) {
                   changed = true;
                   if (!dummy)
-                    selectC.status[dC.i] = dC.e;
+                    selectC.status[dC.foundIndex] = dC.newStatus;
                 }
               });
               if (changed) {
@@ -315,7 +322,7 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
                 await show.last(msg.channel, { data: SeriesData.data, sdata: _selectS, chdata: selectC });
                 msg.channel.send(new Discord.MessageEmbed().setColor("#ff0000")
                   .setTitle(`${dummy ? "Dummy " : ""}Update ${_selectS.getName()}(#${_selectS.id})`)
-                  .addField(`${dummy ? "Dummy " : ""}Revoke`, `${revokechange.map((a) => a.x).join(",")}`)
+                  .addField(`${dummy ? "Dummy " : ""}Revoke`, `${revokechange.map((a) => a.statusType).join(",")}`)
                 ).then(msg => msg.delete({ timeout: 2500 }));
               }
             }

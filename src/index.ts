@@ -122,7 +122,6 @@ Command:` + `
           break;
         case "reload":
           await SeriesData.reload();
-          Site.updateAll(SeriesData.data);
           messageData.log = false;
           await show.last(msg.channel, { data: SeriesData.data });
           break;
@@ -141,19 +140,18 @@ Command:` + `
           messageData.log = false;
           break;
         case "done":
-          console.log("get message done");
-          messageData.choose = await ondone(SeriesData, msg, msgresult) || null;
-          console.log(messageData.choose);
+          messageData.choose = await ondone(SeriesData, msg, msgresult[2]) || null;
           if (messageData.choose && messageData.choose.dummy)
             messageData.log = false;
           break;
         case "revoke":
-          messageData.choose = await onrevoke(SeriesData, msg, msgresult) || null;
+          messageData.choose = await onrevoke(SeriesData, msg, msgresult[2]) || null;
           if (messageData.choose && messageData.choose.dummy)
             messageData.log = false;
           break;
         case "new":
-          // new *
+          if (messageData.choose && messageData.choose.dummy)
+            messageData.log = false;
           break;
         case "change":
           // 

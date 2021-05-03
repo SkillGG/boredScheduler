@@ -117,7 +117,7 @@ show series 4:20\`\`\``);
 //What has been done:
 /(TL|PR|CLRD|CL|RD|TS|QC|RL)/\`\`\``, true)
 				.addField("add:", "Additional info", true)
-				.addField("CL/RD/CLRD <add>:", ` \`\`\`js
+				.addField("CL/RD/CLRD/TS <add>:", ` \`\`\`js
 partial // the work has been partially done (you can start TS)
 almost // the work is almost done\`\`\` `)
 				.addField("RL <add>:", ` \`\`\`js
@@ -311,6 +311,7 @@ let showAllData = async (data: DatabaseSeriesData, channel: Discord.Channel, cea
 					switch (scodes[z].toLowerCase()) {
 						case "cl":
 						case "rd":
+						case "ts":
 							if (!isBreakableStatus(x)) break;
 							DoneText = getCLRDTSAlmostPartialInfo(x, DeadText);
 							break;
@@ -352,7 +353,7 @@ let showChapterData = async (sdata: Series, chdata: Chapter, channel: Discord.Ch
 	await clearEmbeds();
 	let newembed =
 		new Discord.MessageEmbed()
-			.setTitle(`${sdata.getName()} ${chdata.volume ? `Vol.${chdata.volume} ` : ``}Ch.${chdata.id}`).setColor("#0000ff")
+			.setTitle(`${sdata.getName()} ${chdata.volume ? `Vol.${chdata.volume} ` : ``}Ch.${chdata.id} ${chdata.name||""}`).setColor("#0000ff")
 			.setFooter(`chapter ${sdata.id}:${chdata.id}`);
 	let scodes = sdata.statusCodes || defaultStatusCodes;
 	let sDate: Date;
@@ -378,6 +379,7 @@ let showChapterData = async (sdata: Series, chdata: Chapter, channel: Discord.Ch
 			switch (scodes[i].toLowerCase()) {
 				case "cl":
 				case "rd":
+				case "ts":
 					if (!isBreakableStatus(st)) break;
 					DoneText = getCLRDTSAlmostPartialInfo(st, DeadText);
 					break;
@@ -451,6 +453,7 @@ let showSeriesData = async (sdata: Series, channel: Discord.Channel, start: stri
 				switch (scodes[i].toLowerCase()) {
 					case "cl":
 					case "rd":
+					case "ts":
 						if (!isBreakableStatus(st)) break;
 						DoneText = getCLRDTSAlmostPartialInfo(st, DeadText);
 						break;
