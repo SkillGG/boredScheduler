@@ -1,4 +1,19 @@
 // user consts
+import { URL } from 'url';
+
+export const isStringURL = (s: string, protocols: string[] = ["http", "https"]) => {
+  try {
+    let url = new URL(s);
+    return protocols
+      ? url.protocol
+        ? protocols.map(x => `${x.toLowerCase()}:`).includes(url.protocol)
+        : false
+      : true;
+  } catch (err) {
+    return false;
+  }
+};
+
 export const RGX = {
   /*
     $1 - help
@@ -14,5 +29,9 @@ export const RGX = {
     $3 - #+[.#+]
   */
   show: /^\s*(help|chapter|series|all|ceased)\s*(?:([^\r\n\t\f\v]+?)[\s:]*(\d[\d.]*)?)?$/i,
-  _new: /^\s*(chapter)$/i
+  _new: /^\s*(chapter)$/i,
+  /**
+   * Groups: dexid, cubari, possibly_link
+   */
+  ReleaseRest: /^(?:(?:manga)?d(?:ex)?:(?<dexid>\d+)|c(?:u?b?a?r?i?):\/?(?<cubari>(?:gist|imgur)\/[A-Za-z]+\/\d+(?:\/\d+)?)|l(?:i?n?k?)?:(?<lname>.+?)=(?<link>.{11,}?))$/i
 }

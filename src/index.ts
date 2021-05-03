@@ -1,7 +1,7 @@
 require("dotenv").config({ path: ".env" });
 import { Guild, Message, MessageReaction, User } from "discord.js";
 import { Roles, Channels, isTextChannel, discordClient } from "./DiscordIDs"
-import { Series, Chapter, SeriesData } from "./series";
+import { Series, Chapter, SeriesData, loadDBData } from "./series";
 import { RGX } from "./regexs";
 
 // My files
@@ -10,6 +10,7 @@ keepAlive();
 
 import { show } from "./show";
 import { ondone, onrevoke } from "./onmessage";
+import { Site } from "./site";
 
 discordClient.login(process.env.TOKEN);
 
@@ -56,12 +57,11 @@ discordClient.on("ready", () => {
             // delete all messages (TODO: add await for deletion)
             m.forEach(e => e.delete());
           });
-        let showInter = setInterval(() => {
+        loadDBData().then(_ => {
           if (SeriesData.loaded) {
-            clearInterval(showInter);
             show.all(SeriesData.data, r);
           }
-        }, 100);
+        });
       }
     });
 });
@@ -122,6 +122,7 @@ Command:` + `
           break;
         case "reload":
           await SeriesData.reload();
+          Site.updateAll(SeriesData.data);
           messageData.log = false;
           await show.last(msg.channel, { data: SeriesData.data });
           break;

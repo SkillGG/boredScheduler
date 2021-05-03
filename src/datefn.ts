@@ -54,6 +54,7 @@ export let getNextDayWithDate = (dayOfTheWeek: DayOfTheWeek | null, date: Date, 
 }
 
 export let getDeadline = (dayOfWeek: DayOfTheWeek, date: Date, weekSkip?: number): Deadline => {
+  if (!date) return { text: NO_DEADLINE, date: null };
   return {
     text: date.getTime() > 0 ? getNextDayWithDate(dayOfWeek, date, weekSkip) : NO_DEADLINE,
     date: date.getTime() > 0 ? (weekSkip ? getDayOfWeekAfterWeeks(date, dayOfWeek, weekSkip) : getNextDayOfWeek(date, dayOfWeek)) : null

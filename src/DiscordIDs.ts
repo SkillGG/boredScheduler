@@ -17,16 +17,16 @@ type ChannelObjectObjects = {
 
 type ChannelObject = {
     obj: ChannelObjectObjects,
-    botlog?: string,
-    release?: string,
-    schedule?: string
+    botlog: string,
+    release: string,
+    schedule: string
 }
 
 export const Channels: ChannelObject = {
-    obj: {},
+    obj: { botlog: null, release: null, schedule: null },
     schedule: "803360266854072372",
     botlog: "813148662707519549",
-    release: "777815091650232362"// "805919561064382495"
+    release: "805919561064382495"// "777815091650232362"// 
 }
 
 export const discordClient: discordJs.Client = new discordJs.Client();

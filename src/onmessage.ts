@@ -1,12 +1,13 @@
-import { BreakableStatus, CLRDTSStatus, ReleaseStatus, SData, Series } from "./series";
-import { RGX } from "./regexs";
+import { BreakableStatus, CLRDTSStatus, isBreakableStatus, isCubariRelease, isDexRelease, ReleaseStatus, SData, Series } from "./series";
+import { isStringURL, RGX } from "./regexs";
 
 import Discord = require("discord.js");
 import { Channels, discordClient } from "./DiscordIDs";
 
-import { show, defSC } from "./show";
+import { show } from "./show";
+import { CubariChapterLink, defaultStatusCodes, DexChapterLink } from "./strings";
 
-const NOMENTION: boolean = false;
+const NOMENTION: boolean = true;
 
 type MessageDoChange = {
   statusType: string,
@@ -52,7 +53,7 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
         let _selectS: Series;
         let doneAccept = async () => {
           console.log(`${dummy ? "Dummy Done" : "Done"} for series:`, _selectS.getName(), "chapter:", sC);
-          let sCodes = _selectS.statusCodes || defSC;
+          let sCodes = _selectS.statusCodes || defaultStatusCodes;
           let selectC = sC ? _selectS.chapters.get(sC) : _selectS.chapters.getCurrent();
           if (!selectC) {
             // ERROR: Could not find chapter
@@ -120,22 +121,42 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
                 break;
               case "RL":
                 {
-                  let e: ReleaseStatus;
+                  let e: ReleaseStatus = null;
                   if (!rest)
                     return show.error({ msg: "Site Not specified!", command: "done \\* **RL**" }, msg.channel);
                   // TODO: LATE and WEEKSKIP implemetation 
-                  let RelMSG = await discordClient.channels.fetch(Channels.release).then(async chn => {
-                    return await (chn as Discord.TextChannel)
-                      .send(`${NOMENTION ? "" : _selectS.mention ? `<@&${_selectS.mention}> ` : ""}**${_selectS.getName()} chapter ${selectC.id} released**\nOn MangaDex: https://mangadex.org/chapter/${rest.trim()}`);
-                  });
-                  if (!(!!e && typeof e === "object"))
-                    e = { msgID: RelMSG.id, dexid: `${rest.trim()}` };
-                  else {
+                  rest = rest.trim();
+                  let restRX: RegExpExecArray;
+                  if (restRX = RGX.ReleaseRest.exec(rest)) {
+                    if (restRX.groups.dexid) {
+                      e = { msgID: null, dexid: restRX.groups.dexid };
+                    }
+                    if (restRX.groups.cubari) {
+                      e = { msgID: null, cubari: restRX.groups.cubari }
+                    }
+                    if (restRX.groups.link && restRX.groups.lname) {
+                      if (isStringURL(restRX.groups.link)) {
+                        e = { msgID: null, link: restRX.groups.link, name: restRX.groups.lname }
+                      }
+                    }
+                    let releaseLink = (): string => {
+                      if (isDexRelease(e))
+                        return `On [MangaDex](${DexChapterLink}${e.dexid})`
+                      if (isCubariRelease(e)) return `On [Cubari](${CubariChapterLink}${e.cubari})`
+                      return `On [${e.name}](${e.link})`
+                    }
+                    let RelMSG = await discordClient.channels.fetch(Channels.release).then(async chn => {
+                      return await (chn as Discord.TextChannel)
+                        .send(`${NOMENTION ? "" : _selectS.getMention()}**${_selectS.getName()} chapter ${selectC.id} released**\n${releaseLink()}`);
+                    });
                     e.msgID = RelMSG.id;
-                    e.dexid = rest.trim();
                   }
                   donechange = [{ statusType: sT, foundIndex: i, element: e }];
                   let nc = _selectS.chapters[_selectS.chapters.indexOf(selectC) + 1]
+                  if (!nc) {
+                    _selectS.finished = true;
+                    break;
+                  }
                   _selectS.current = nc.id;
                   selectC.sDate = selectC.startDate;
                   selectC.startDate = null;
@@ -156,11 +177,24 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
                 await SeriesData.save();
                 // console.log(show);
                 await show.last(msg.channel, { data: SeriesData.data, sdata: _selectS, chdata: selectC });
+                let changesInfo = (e: CLRDTSStatus | ReleaseStatus): string => {
+                  if (typeof e === "object") {
+                    if (isBreakableStatus(e))
+                      return `${e.partial ? "partial" : ""}${e.almost ? "almost" : ""}`
+                    if (isDexRelease(e))
+                      return `DexID: ${e.dexid}`;
+                    if (isCubariRelease(e))
+                      return `Cubari: ${e.cubari}`;
+                    return `Link ${e.name}: ${e.link}`;
+                  }
+                  return "";
+                }
                 msg.channel.send(new Discord.MessageEmbed()
                   .setTitle(`${dummy ? "Dummy " : ""}Update ${_selectS.getName()}(#${_selectS.id})`)
                   .addField(
                     `${dummy ? "Dummy " : ""}Done`,
-                    `${donechange.map((a) => `${a.statusType} ${a.element ? ((a.element as BreakableStatus).partial ? "partial" : "") : ""}${a.element ? (a.element as BreakableStatus).almost ? "almost" : "" : ""}${a.element ? ((a.element as ReleaseStatus).dexid || "") : ""}`).join(",")}`)
+                    `${donechange.map((a) => `${a.statusType} ${changesInfo(a.element)}`).join(",")}`
+                  )
                 ).then(m => m.delete({ timeout: 2500 }));
               }
             }
@@ -185,6 +219,7 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: R
     } else {
       // help
       show.help(msg.channel, 2);
+      return { dummy: true };
     }
   } else {
     show.error(
@@ -221,8 +256,7 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
         let _selectS: Series;
         let revokeAccept = async () => {
           console.log(`${dummy ? "Dummy revoke" : "Revoke"} for series:`, _selectS.getName(), "chapter:", sC);
-          let sCodes = _selectS.statusCodes || defSC;
-          let selectC = sC ? _selectS.chapters.get(sC) : _selectS.chapters.getCurrent();
+          let selectC = sC ? _selectS.chapters.get(sC) : _selectS.chapters.getBeforeCurrent();
           if (!selectC) {
             // ERROR: Could not find chapter
             show.error({ msg: `Could not find chapter #${sC}`, command: `revoke ${_selectS.getName()}:${sC || "<current>"}` }, msg.channel);
@@ -245,7 +279,7 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
                 break;
               case "RL": {
                 let RM = "";
-                if (typeof selectC.status[6] == "object")
+                if (selectC.status[6] && typeof selectC.status[6] == "object")
                   RM = selectC.status[6].msgID;
                 if (RM)
                   discordClient.channels.fetch(Channels.release)
@@ -270,10 +304,10 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
             if (revokechange) {
               let changed = false;
               revokechange.forEach(dC => {
-                if (parseInt(dC.i) >= 0) {
+                if (dC.i >= 0) {
                   changed = true;
                   if (!dummy)
-                    selectC.status[parseInt(dC.i)] = dC.e;
+                    selectC.status[dC.i] = dC.e;
                 }
               });
               if (changed) {
@@ -281,7 +315,7 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
                 await show.last(msg.channel, { data: SeriesData.data, sdata: _selectS, chdata: selectC });
                 msg.channel.send(new Discord.MessageEmbed().setColor("#ff0000")
                   .setTitle(`${dummy ? "Dummy " : ""}Update ${_selectS.getName()}(#${_selectS.id})`)
-                  .addField(`${dummy ? "Dummy " : ""}Revoke`, `${revokechange.map((a, v) => v = a.x).join(",")}`)
+                  .addField(`${dummy ? "Dummy " : ""}Revoke`, `${revokechange.map((a) => a.x).join(",")}`)
                 ).then(msg => msg.delete({ timeout: 2500 }));
               }
             }
@@ -306,6 +340,7 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
     } else {
       // help
       show.help(msg.channel, 3);
+      return { dummy: true }
     }
   } else {
     show.error(

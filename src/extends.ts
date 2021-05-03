@@ -5,8 +5,6 @@
 
 */
 // Checks if number is even
-
-/// <reference path="lib.es5.d.ts">
 interface NumberConstructor {
 	isEven: (x: number | string) => boolean
 }

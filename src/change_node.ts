@@ -1,4 +1,4 @@
-require("dotenv").config({path:".env"});
+require("dotenv").config({ path: ".env" });
 
 import fs = require("fs");
 import { MongoClient } from 'mongodb';
@@ -53,9 +53,18 @@ import { MongoClient } from 'mongodb';
 			// let failsafe = JSON.stringify(await coll.find({}).toArray());
 			// fs.writeFileSync("./_pretest_database.json", failsafe);
 
+			let allData = coll.find({});
+			let all: any[] = [];
+			await allData.forEach((e) => all.push(e));
+			for (let i = 0; i < all.length; i++)
+				if (all[i].dexID)
+					await coll.updateOne({ id: all[i].id }, { $set: { "sitePage": [{ dexid: all[i].dexID }] } });
+				else
+					await coll.updateOne({ id: all[i].id }, { $unset: { "sitePage": true } });
+
 			//console.log(fs.readFileSync("./_pretest_database.json"));
 			// restore
-			// let x = JSON.parse(fs.readFileSync("./failsafe.json"));
+			// let x = JSON.parse(fs.readFileSync("./_pretest_database.json", "utf-8"));
 			// await coll.deleteMany({});
 			// await coll.insertMany(x);
 			// console.log(

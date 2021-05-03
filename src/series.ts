@@ -1,29 +1,36 @@
 import Mongo = require('mongodb');
+import { linkSync } from 'node:fs';
 import { DayOfTheWeek } from './datefn';
 import { Site } from "./site";
+import { defaultStatusCodes } from './strings';
 
-export type DexID = {
-  id?: string,
-  by?: string
+export interface DexID {
+  id: string,
+  by: string
 }
+export type MultiDex = [DexID | string, ...DexID[]];
 
-export type ReleaseStatus = {
-  dexid?: string | DexID,
-  dexids?: DexID[],
-  msgID?: string
-};
+interface LinkRelease {
+  link: string,
+  name: string
+}
+interface DexRelease { dexid: string | DexID | MultiDex }
+interface CubariRelease { cubari: string }
 
-export type BreakableStatus = {
+export let isDexRelease = (status: ReleaseStatus): status is RLStatus & DexRelease => status.hasOwnProperty("dexid");
+export let isCubariRelease = (status: ReleaseStatus): status is RLStatus & CubariRelease => status.hasOwnProperty("cubari");
+export let isLinkRelease = (status: ReleaseStatus): status is RLStatus & LinkRelease => status.hasOwnProperty("link");
+
+type RLStatus = { msgID: string }
+export type ReleaseStatus = (RLStatus & (DexRelease | LinkRelease | CubariRelease));
+
+export interface BreakableStatus {
   partial: boolean,
   almost: boolean
 }
 
-export function isBreakableStatus(channel: BreakableStatus | ReleaseStatus): channel is BreakableStatus {
-  return channel.hasOwnProperty("partial");
-}
-
+export let isBreakableStatus = (channel: BreakableStatus | ReleaseStatus): channel is BreakableStatus => channel.hasOwnProperty("partial");
 export type CLRDTSStatus = BreakableStatus | number;
-
 export type ChapterStatus = [number, number, CLRDTSStatus, CLRDTSStatus, CLRDTSStatus, number, ReleaseStatus];
 
 export interface Chapter {
@@ -39,24 +46,34 @@ export interface Chapter {
   weekSkip?: number
 }
 
-type ChapterFunctions = {
-  getCurrent?: () => Chapter,
-  get?: (id: string | number) => Chapter
+interface ChapterFunctions {
+  getCurrent: () => Chapter
+  getBeforeCurrent: () => Chapter
+  get: (id: string | number) => Chapter
 }
 
-type SeriesFunctions = {
+interface SeriesFunctions {
   getByName?: (name: string) => Series,
   get?: (id: string | number) => Series,
   getSeries?: (identifier: string) => Series | Series[]
 }
 
-export type Schedule = {
-  dows: [DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek]
-}
+export interface Schedule { dows: [DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek] }
+
+interface DexPage { dexid: string }
+interface CubariPage { cubari: string }
+interface LinkPage { link: string, name: string }
+
+export let isDexPage = (p: SitePage): p is DexPage => !p ? false : p.hasOwnProperty("dexid");
+export let isLinkPage = (p: SitePage): p is LinkPage => !p ? false : p.hasOwnProperty("link");
+export let isCubariPage = (p: SitePage): p is CubariPage => !p ? false : p.hasOwnProperty("cubari");
+
+export type SitePage = DexPage | CubariPage | LinkPage;
 
 export interface Series {
   parent?: SData
   ceased?: boolean
+  finished?: boolean
   id: string
   name: string | string[]
   mention: string
@@ -65,16 +82,15 @@ export interface Series {
   schedule?: Schedule
   siteName: string
   current: string
-  dexID: string
+  sitePage?: SitePage[] | SitePage
   getName: () => string
+  getMention: () => string
   getIndexOfStatus: (st: string) => number
 }
 
-export type DatabaseSeriesData = {
-  series: Series[] & SeriesFunctions
-}
+export interface DatabaseSeriesData { series: Series[] & SeriesFunctions }
 
-export type SData = {
+export interface SData {
   data: DatabaseSeriesData,
   loaded?: boolean,
   showVal?: number,
@@ -136,7 +152,7 @@ export let loadDBData = async () => {
         current: 1,
         schedule: 1,
         siteName: 1,
-        dexID: 1
+        sitePage: 1 
       };
       let cur = coll.find({ id: { $gt: 0 } }, { sort: { id: 1 }, projection });
       await cur.forEach((e: Series) => xxinput.push(e as Series));
@@ -144,15 +160,11 @@ export let loadDBData = async () => {
       SeriesData.loaded = true;
       SeriesData.data.series.forEach(e => {
         e.parent = SeriesData;
-        e.chapters.forEach(ch => {
-          if (ch.status[6] === 0)
-            ch.status[6] = null;
-        });
         if (!e.statusCodes || e.statusCodes.length !== 7)
           e.statusCodes = ["TL", "PR", "CL", "RD", "TS", "QC", "RL"];
         e.chapters.get = (id) => {
           if (!id) return null;
-          let ret = null;
+          let ret: Chapter = null;
           e.chapters.forEach(e => {
             if (ret) return;
             if (e.id == id)
@@ -160,7 +172,7 @@ export let loadDBData = async () => {
           });
           return ret;
         };
-        e.chapters.getCurrent = () => {
+        e.chapters.getCurrent = (): Chapter => {
           if (e.current)
             return e.chapters.get(e.current);
           else {
@@ -172,6 +184,8 @@ export let loadDBData = async () => {
             return lc;
           }
         }
+        e.chapters.getBeforeCurrent = (): Chapter => e.chapters[e.chapters.indexOf(e.chapters.getCurrent()) - 1];
+        e.getMention = (): string => e.mention ? `<@&${e.mention}> ` : "";
         e.getName = () => {
           if (e.name instanceof Array)
             return e.name[0];
@@ -179,7 +193,7 @@ export let loadDBData = async () => {
         }
         e.getIndexOfStatus = (st) => {
           let r = -1;
-          e.statusCodes.forEach((e, i) => {
+          (e.statusCodes || defaultStatusCodes).forEach((e, i) => {
             if (r >= 0) return;
             if (`${e}`.toLowerCase() === `${st}`.toLowerCase())
               r = i;
@@ -189,11 +203,7 @@ export let loadDBData = async () => {
       });
       SeriesData.data.series.getByName = (name) => {
         if (!name) return null;
-        /**
-         * Return value
-         * @type {string}
-         */
-        let ret = null;
+        let ret: Series = null;
         SeriesData.data.series.forEach(e => {
           if (ret) return;
           if (e.name instanceof Array) {
@@ -211,7 +221,7 @@ export let loadDBData = async () => {
       }
       SeriesData.data.series.get = (id) => {
         if (!id) return null;
-        let ret = null;
+        let ret: Series = null;
         SeriesData.data.series.forEach(e => {
           if (ret) return;
           if (e.id == id)
@@ -221,7 +231,7 @@ export let loadDBData = async () => {
       };
       SeriesData.data.series.getSeries = (identifier) => {
         if (!identifier) return null;
-        let ret = null;
+        let ret: (Series | Series[]) = null;
         SeriesData.data.series.forEach(e => {
           let nameMatches = false;
           if (e.name instanceof Array) {
@@ -233,9 +243,11 @@ export let loadDBData = async () => {
             nameMatches = !!e.name.match(safeRegex(identifier));
           }
           if (e.id == identifier || nameMatches) {
-            if (ret && !(ret instanceof Array))
+            if (ret && !(ret instanceof Array)) {
               ret = [ret];
-            if (ret instanceof Array) ret.push(e); else ret = e;
+            }
+            if (ret instanceof Array) ret.push(e);
+            else ret = e;
           }
         });
         return ret;
@@ -248,4 +260,3 @@ export let loadDBData = async () => {
   };
   await SeriesData.reload();
 }
-loadDBData();

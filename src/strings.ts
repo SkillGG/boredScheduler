@@ -3,6 +3,9 @@ export const defaultStatusCodes = ["TL", "PR", "CL", "RD", "TS", "QC", "RL"];
 export const defaultReactions = ["🇦", "🇧", "🇨", "🇩", "🇪", "🇫", "🇬", "🇭", "🇮", "🇯", "🇰", "🇱", "🇲"];
 export const cancelReaction = "❌";
 
+export const DexTitleLink = "https://mangadex.org/title/";
+export const DexChapterLink = "https://mangadex.org/chapter/";
+export const CubariChapterLink = "https://cubari.moe/read/";
 
 export const siteHost = "localhost";
 // export const siteHost = "borednichetranslatorscans.mywebcommunity.org";
