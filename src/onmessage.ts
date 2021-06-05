@@ -127,6 +127,25 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: s
                   rest = rest.trim();
                   let restRX: RegExpExecArray;
                   if (restRX = RGX.ReleaseRest.exec(rest)) {
+                    /*
+                      rest=
+                        <sitename>:<chapter_info>
+                      where
+                        <sitename> -  [manga]d[ex]
+                                      c[ubari]
+                                      l[ink]
+                        <chapter_info> -  Depends on SiteName:
+                              d:
+                              //TODO: NEW DEX IDs
+                                \d+ 
+                              c:
+                                /(imgur|gist)/[.]+/\d+[/\d+]
+                              l:
+                                <name>=<link>
+                                where
+                                  <name> - name of the link ([^\n=])
+                                  <link> - http[s]:// link
+                    */
                     if (restRX.groups.dexid) {
                       e = { msgID: null, dexid: restRX.groups.dexid };
                     }

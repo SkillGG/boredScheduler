@@ -7,8 +7,8 @@ export const DexTitleLink = "https://mangadex.org/title/";
 export const DexChapterLink = "https://mangadex.org/chapter/";
 export const CubariChapterLink = "https://cubari.moe/read/";
 
-export const siteHost = "localhost";
-// export const siteHost = "borednichetranslatorscans.mywebcommunity.org";
+//export const siteHost = "localhost";
+export const siteHost = "borednichetranslatorscans.mywebcommunity.org";
 
 export const PARTIAL = "__We're half way!__";
 export const ALMOST = "__We're almost there!__";
