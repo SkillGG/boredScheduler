@@ -6,6 +6,9 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+package.json
+package-lock.json
+
 # VSCode workspace
 *.code-workspace
 

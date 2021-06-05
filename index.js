@@ -5,7 +5,7 @@ const {show,newf,newfb} = require("./show.js");
 const {change} = require("./change.js");
 const {_new} = require("./new.js");
 require("./keep-alive.js")();
-
+//process.exit(0);
 // user consts
 const RGX = {
   /*
@@ -32,7 +32,7 @@ const Channels = {
   obj:{},
   schedule:"803360266854072372",
   botlog:"813148662707519549",
-  release:"777815091650232362"// "805919561064382495"// 
+  release: "805919561064382495"// "777815091650232362"
 }
 const NOMENTION = false;
 
