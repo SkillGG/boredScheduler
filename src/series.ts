@@ -1,5 +1,4 @@
 import Mongo = require('mongodb');
-import { linkSync } from 'node:fs';
 import { DayOfTheWeek } from './datefn';
 import { Site } from "./site";
 import { defaultStatusCodes } from './strings';
