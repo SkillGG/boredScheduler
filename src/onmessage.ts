@@ -1,4 +1,4 @@
-import { BreakableStatus, CLRDTSStatus, isBreakableStatus, isCubariRelease, isDexRelease, ReleaseStatus, SData, Series } from "./series";
+import { BreakableStatus, Chapter, CLRDTSStatus, isBreakableStatus, isCubariRelease, isDexRelease, ReleaseStatus, SData, Series } from "./series";
 import { isStringURL, RGX } from "./regexs";
 
 import Discord = require("discord.js");
@@ -17,9 +17,9 @@ type MessageDoChange = {
 
 type ReturnOnMessage = {
   dummy: boolean,
-  ex?: any,
-  i?: number,
-  series?: string
+  ifError?: any,
+  chosenNumber?: number,
+  availableSeries?: string
 }
 
 export let getNewDate = () => {
@@ -28,10 +28,10 @@ export let getNewDate = () => {
   return nDate;
 }
 
-export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: string): Promise<ReturnOnMessage> => {
+export let ondone = async (SeriesData: SData, msg: Discord.Message, command: string): Promise<ReturnOnMessage> => {
   // done *
   let doneresult: RegExpExecArray;
-  if (doneresult = RGX.done.exec(msgresult.trim())) {
+  if (doneresult = RGX.done.exec(command.trim())) {
     let dummy = false;
     if (/dummy/i.exec(doneresult[5])) {
       doneresult[5] = doneresult[5].replace(/\s*dummy\s*/i, "");
@@ -126,7 +126,7 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: s
                   // TODO: LATE and WEEKSKIP implemetation 
                   rest = rest.trim();
                   let restRX: RegExpExecArray;
-                  if (restRX = RGX.ReleaseRest.exec(rest)) {
+                  if (restRX = RGX.releaseRest.exec(rest)) {
                     if (restRX.groups.dexid) {
                       e = { msgID: null, dexid: restRX.groups.dexid };
                     }
@@ -209,13 +209,14 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: s
         if (Array.isArray(selectS)) {
           // ask for which series to use
           // TODO: come back when finished show.ts
-          let qEx, i = await show.reactionSeriesSelect(msg.channel, selectS).catch(x => (qEx = x, -1));
-          if (i !== -1) {
-            _selectS = selectS[i];
+          let errString: string;
+          let selected = await show.reactionSeriesSelect(msg.channel, selectS).catch((x: string) => ((errString = x), -1));
+          if (selected !== -1) {
+            _selectS = selectS[selected];
             await doneAccept();
-            return { i, series: selectS.map((a) => a.getName()).join(","), dummy };
+            return { chosenNumber: selected, availableSeries: selectS.map((a) => a.getName()).join(","), dummy };
           }
-          return { ex: qEx, series: selectS.map((a) => a.getName()).join(","), dummy };
+          return { ifError: errString, availableSeries: selectS.map((a) => a.getName()).join(","), dummy };
         }
         _selectS = selectS;
         await doneAccept();
@@ -237,10 +238,10 @@ export let ondone = async (SeriesData: SData, msg: Discord.Message, msgresult: s
   }
 }
 
-export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult: string): Promise<ReturnOnMessage> => {
+export let onrevoke = async (SeriesData: SData, msg: Discord.Message, command: string): Promise<ReturnOnMessage> => {
   // revoke *
   let revokeresult: RegExpExecArray;
-  if (revokeresult = RGX.done.exec(msgresult.trim())) {
+  if (revokeresult = RGX.done.exec(command.trim())) {
     let dummy = false;
     if (/dummy/i.exec(revokeresult[5])) {
       revokeresult[5] = revokeresult[5].replace(/\s*dummy\s*/i, "");
@@ -331,13 +332,13 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
         if (Array.isArray(selectS)) {
           // ask for which series to use
           // TODO: come back when finished show.ts
-          let qEx, i = await show.reactionSeriesSelect(msg.channel, selectS).catch(x => (qEx = x, -1));
+          let errString, i = await show.reactionSeriesSelect(msg.channel, selectS).catch(x => ((errString = x), -1));
           if (i !== -1) {
             _selectS = selectS[i];
             await revokeAccept();
-            return { i, series: selectS.map((a) => a.getName()).join(","), dummy };
+            return { chosenNumber: i, availableSeries: selectS.map((a) => a.getName()).join(","), dummy };
           }
-          return { ex: qEx, series: selectS.map((a) => a.getName()).join(","), dummy };
+          return { ifError: errString, availableSeries: selectS.map((a) => a.getName()).join(","), dummy };
         }
         _selectS = selectS;
         await revokeAccept();
@@ -357,4 +358,70 @@ export let onrevoke = async (SeriesData: SData, msg: Discord.Message, msgresult:
         timeout: 5000
       }, msg.channel);
   }
+}
+
+type NewChapterData = Required<Pick<Chapter, "name" | "id">>;
+
+export let onnew = async (data: SData, msg: Discord.Message, command: string): Promise<ReturnOnMessage> => {
+  // new chapter <data>
+  /*
+    new chapter <seriesID> <id>=<name>
+  */
+  let newresult: RegExpExecArray;
+  if (newresult = RGX.newChapter.exec(command.trim())) {
+    let dummy: boolean, noName: boolean;
+    let { series: seriesID, newid: chapterID, newname: chapterName, noName: noNameStr, dummy: dummyStr, rest } = newresult.groups;
+    if (noName) chapterName = "";
+    dummy = !!dummyStr;
+    noName = !!noNameStr;
+    console.log("s, ci, cn, nn, d, r", seriesID, chapterID, chapterName, noName, dummy, rest);
+    let parsedSeries = data.data.series.getSeries(seriesID);
+    let acceptNew = (series: Series, chapterData: NewChapterData, execute: boolean): void => {
+      if (!series || !chapterData)
+        throw "No series or chapterData provided!";
+      let newchap: Chapter = {
+        startDate: null,
+        status: [0, 0, 0, 0, 0, 0, null],
+        id: chapterData.id,
+        name: chapterData.name
+      };
+      series.addNewChapter(newchap);
+    }
+    let newChapter: NewChapterData = {
+      name: noName ? null : chapterName,
+      id: chapterID
+    };
+    if (Array.isArray(parsedSeries)) {
+      let allseries = parsedSeries.reduce<string>((a, s, i, ar) => a + s.name + (ar.lastIndexOf(s) != i ? "," : ""), "");
+      let err: string;
+      let selected = await show.reactionSeriesSelect(msg.channel, parsedSeries).catch((x: string) => ((err = x), -1));
+      if (selected !== -1) {
+        try {
+          acceptNew(parsedSeries[selected], newChapter, dummy)
+        } catch (e) {
+          return console.log(e, parsedSeries, newChapter), null;
+        }
+        return {
+          dummy,
+          availableSeries: allseries,
+          chosenNumber: selected
+        };
+      }
+      return { dummy, ifError: err, availableSeries: allseries };
+    }
+    try {
+      acceptNew(parsedSeries, newChapter, dummy)
+    } catch (e) {
+      return console.log(e, parsedSeries, newChapter), null;
+    }
+    if (dummy)
+      return { dummy };
+  } else {
+    show.error({
+      msg: "That's not how you use this command! Check `new help` for more info.",
+      command: `${msg.content.replace(/([\*~_`])/g, "\\$1")}`,
+      timeout: 5000
+    }, msg.channel);
+  }
+  return null;
 }

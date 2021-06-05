@@ -5,10 +5,11 @@
         "jsx": "preserve",
         "strictFunctionTypes": true,
         "sourceMap": true,
-        "outDir":"./out",
-        "noImplicitAny": true
+        "outDir": "./out",
+        "noImplicitAny": true,
+        "lib": ["ES2020.String"]
     },
-    "exclude":[
+    "exclude": [
         "node_modules"
     ],
     "include": [

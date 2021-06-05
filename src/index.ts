@@ -4,12 +4,11 @@ import { Roles, Channels, isTextChannel, discordClient } from "./DiscordIDs"
 import { Series, Chapter, SeriesData, loadDBData } from "./series";
 import { RGX } from "./regexs";
 
-// My files
 import keepAlive from "./keep-alive";
 keepAlive();
 
 import { show } from "./show";
-import { ondone, onrevoke } from "./onmessage";
+import { ondone, onnew, onrevoke } from "./onmessage";
 import { Site } from "./site";
 
 discordClient.login(process.env.TOKEN);
@@ -150,8 +149,9 @@ Command:` + `
             messageData.log = false;
           break;
         case "new":
-          if (messageData.choose && messageData.choose.dummy)
-            messageData.log = false;
+          console.log("onnewReturn: ", messageData.choose = await onnew(SeriesData, msg, msgresult[2]) || null);
+          //if (messageData.choose && (messageData.choose.dummy || messageData.choose.silent))
+          messageData.log = false;
           break;
         case "change":
           // 

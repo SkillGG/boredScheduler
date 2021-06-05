@@ -1,5 +1,4 @@
 import Mongo = require('mongodb');
-import { linkSync } from 'node:fs';
 import { DayOfTheWeek } from './datefn';
 import { Site } from "./site";
 import { defaultStatusCodes } from './strings';
@@ -33,6 +32,9 @@ export let isBreakableStatus = (channel: BreakableStatus | ReleaseStatus): chann
 export type CLRDTSStatus = BreakableStatus | number;
 export type ChapterStatus = [number, number, CLRDTSStatus, CLRDTSStatus, CLRDTSStatus, number, ReleaseStatus];
 
+export let isChapter = (x: any): x is Chapter =>
+  x.hasOwnProperty("id") && x.hasOwnProperty("status") && Array.isArray(x.status) && x.hasOwnProperty("startDate") && (x.startDate instanceof Date);
+
 export interface Chapter {
   id: string
   status: ChapterStatus
@@ -46,16 +48,28 @@ export interface Chapter {
   weekSkip?: number
 }
 
+export let chapterIDComparer = (o: string, c: string) => {
+  let os = [...o.matchAll(/([a-z]+)/ig)];
+  let on = [...o.matchAll(/([\d]+[.,]?[\d]*)/g)];
+  let cs = [...c.matchAll(/([a-z]+)/ig)];
+  let cn = [...c.matchAll(/([\d]+[.,]?[\d]*)/g)];
+  let strCompares: number[] = [];
+  let numCompares: number[] = [];
+  os.forEach((e, i) => !e[1] || !cs[i] ? 0 : strCompares.push(e[1].localeCompare(cs[i][1])));
+  on.forEach((e, i) => !e[1] || !cn[i] ? 0 : numCompares.push(parseFloat(e[1]) == parseFloat(cn[i][1]) ? 0 : parseFloat(e[1]) > parseFloat(cn[i][1]) ? 1 : -1));
+  return numCompares.reduce<number>((b, a) => b + a, 0) + strCompares.reduce<number>((b, a) => b + a, 0);
+}
+
 interface ChapterFunctions {
-  getCurrent: () => Chapter
-  getBeforeCurrent: () => Chapter
-  get: (id: string | number) => Chapter
+  getCurrent(): Chapter
+  getBeforeCurrent(): Chapter
+  get(id: string | number): Chapter
 }
 
 interface SeriesFunctions {
-  getByName?: (name: string) => Series,
-  get?: (id: string | number) => Series,
-  getSeries?: (identifier: string) => Series | Series[]
+  getByName(name: string): Series,
+  get(id: string | number): Series,
+  getSeries(identifier: string): Series | Series[]
 }
 
 export interface Schedule { dows: [DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek, DayOfTheWeek] }
@@ -83,9 +97,10 @@ export interface Series {
   siteName: string
   current: string
   sitePage?: SitePage[] | SitePage
-  getName: () => string
-  getMention: () => string
-  getIndexOfStatus: (st: string) => number
+  getName(): string
+  getMention(): string
+  getIndexOfStatus(st: string): number
+  addNewChapter(c: Chapter): boolean
 }
 
 export interface DatabaseSeriesData { series: Series[] & SeriesFunctions }
@@ -152,16 +167,76 @@ export let loadDBData = async () => {
         current: 1,
         schedule: 1,
         siteName: 1,
-        sitePage: 1 
+        sitePage: 1
       };
       let cur = coll.find({ id: { $gt: 0 } }, { sort: { id: 1 }, projection });
       await cur.forEach((e: Series) => xxinput.push(e as Series));
-      SeriesData.data = { series: xxinput };
+      SeriesData.data = {
+        series: Object.assign(xxinput, {
+          getByName: function (name: string) {
+            if (!name) return null;
+            let ret: Series = null;
+            SeriesData.data.series.forEach(e => {
+              if (ret) return;
+              if (e.name instanceof Array) {
+                e.name.forEach(n => {
+                  if (ret) return;
+                  if (n.match(safeRegex(name)))
+                    ret = e;
+                });
+              }
+              else
+                if (e.name.match(safeRegex(name)))
+                  ret = e;
+            });
+            return ret;
+          },
+          get: (id: string | number) => {
+            if (!id) return null;
+            let ret: Series = null;
+            SeriesData.data.series.forEach(e => {
+              if (ret) return;
+              if (e.id == id)
+                ret = e;
+            });
+            return ret;
+          },
+          getSeries: (identifier: string) => {
+            if (!identifier) return null;
+            let ret: (Series | Series[]) = null;
+            SeriesData.data.series.forEach(e => {
+              let nameMatches = false;
+              if (e.name instanceof Array) {
+                e.name.forEach(n => {
+                  if (nameMatches) return;
+                  nameMatches = !!n.match(safeRegex(identifier));
+                });
+              } else {
+                nameMatches = !!e.name.match(safeRegex(identifier));
+              }
+              if (e.id == identifier || nameMatches) {
+                if (ret && !(ret instanceof Array)) {
+                  ret = [ret];
+                }
+                if (ret instanceof Array) ret.push(e);
+                else ret = e;
+              }
+            });
+            return ret;
+          }
+        })
+      };
       SeriesData.loaded = true;
       SeriesData.data.series.forEach(e => {
         e.parent = SeriesData;
         if (!e.statusCodes || e.statusCodes.length !== 7)
           e.statusCodes = ["TL", "PR", "CL", "RD", "TS", "QC", "RL"];
+        e.chapters.forEach(chap => {
+          if (chap.startDate)
+            chap.startDate = new Date(chap.startDate); // ensure its Date()
+          if (chap.sDate)
+            chap.sDate = new Date(chap.sDate);
+        });
         e.chapters.get = (id) => {
           if (!id) return null;
           let ret: Chapter = null;
@@ -200,58 +275,13 @@ export let loadDBData = async () => {
           });
           return r === -1 ? null : r;
         }
+        e.addNewChapter = (chap) => {
+          if (!chap || !isChapter(chap))
+            return false;
+          e.chapters.push(chap);
+          e.chapters.sort((prev, next) => (parseFloat(prev.id) > parseFloat(next.id)) ? 1 : -1);
+        }
       });
-      SeriesData.data.series.getByName = (name) => {
-        if (!name) return null;
-        let ret: Series = null;
-        SeriesData.data.series.forEach(e => {
-          if (ret) return;
-          if (e.name instanceof Array) {
-            e.name.forEach(n => {
-              if (ret) return;
-              if (n.match(safeRegex(name)))
-                ret = e;
-            });
-          }
-          else
-            if (e.name.match(safeRegex(name)))
-              ret = e;
-        });
-        return ret;
-      }
-      SeriesData.data.series.get = (id) => {
-        if (!id) return null;
-        let ret: Series = null;
-        SeriesData.data.series.forEach(e => {
-          if (ret) return;
-          if (e.id == id)
-            ret = e;
-        });
-        return ret;
-      };
-      SeriesData.data.series.getSeries = (identifier) => {
-        if (!identifier) return null;
-        let ret: (Series | Series[]) = null;
-        SeriesData.data.series.forEach(e => {
-          let nameMatches = false;
-          if (e.name instanceof Array) {
-            e.name.forEach(n => {
-              if (nameMatches) return;
-              nameMatches = !!n.match(safeRegex(identifier));
-            });
-          } else {
-            nameMatches = !!e.name.match(safeRegex(identifier));
-          }
-          if (e.id == identifier || nameMatches) {
-            if (ret && !(ret instanceof Array)) {
-              ret = [ret];
-            }
-            if (ret instanceof Array) ret.push(e);
-            else ret = e;
-          }
-        });
-        return ret;
-      }
     } catch (err) {
       console.error(err.stack);
     } finally {
