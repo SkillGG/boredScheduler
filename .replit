@@ -1,2 +1,2 @@
 language = "nodejs"
-run = "ts-node ./src/index.js"
+run = "npm run run"
