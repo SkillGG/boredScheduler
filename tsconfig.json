@@ -6,7 +6,8 @@
         "strictFunctionTypes": true,
         "sourceMap": true,
         "outDir":"./out",
-        "noImplicitAny": true
+        "noImplicitAny": true,
+        "allowJs": false
     },
     "exclude":[
         "node_modules"
