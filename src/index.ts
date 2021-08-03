@@ -91,7 +91,9 @@ let onmessage = async (msg: Message): Promise<void> => {
         await mutemember.roles.remove(Roles.mute);
 
       // log
-      await msg.channel.send(`${msg.author} ${muteid[1] ? "un" : ""}muted ${mutemember}!`);
+      if(!msg.deleted)
+        msg.delete();
+      await msg.channel.send(`${muteid[1] ? "un" : ""}muted ${mutemember}!`);
       let logMsg = `Bot activity by ${msg.author}!
 Command:` + `
 >   *__${msg.content}__*`.replace(/<@!(.*?)>/g, `${mutemember.user.username}`);
