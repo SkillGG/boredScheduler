@@ -96,6 +96,7 @@ let updateSeries = (series: Series) => {
 		return "no siteName";
 
 	let data: SiteData = { pass: process.env.SitePASS };
+  console.log(data);
 	data.pathName = series.siteName;
 	data.html = ``;
 	let redos = 0;
@@ -250,7 +251,8 @@ let getSitePageAElements = (page: SitePage | SitePage[]): string => {
 			return `<a class='siteIMG' href="${DexTitleLink}${page.dexid}"><img src='md.svg' alt="MangaDex"></a>`;
 		}
 		if (isCubariPage(page)) {
-			return `<a class='siteIMG' href="${CubariChapterLink}${page.cubari.replace(/^\/((?:gist|imgur)\/\S+?)(?:\/\d+(?:\/\d+)?)?$/, "$1")}"><img alt='Cubari' src='cubari.png'></a>`;
+      console.log(page);
+			return `<a class='siteIMG' href="${CubariChapterLink}${page.cubari.replace(/^\/((?:gist|imgur)\/\S+?\/\d+)(?:(?:\/\d+)?)?$/, "$1")}"><img alt='Cubari' src='cubari.png'></a>`;
 		}
 		return `<a class='siteIMG' href='${page.link}'>${page.name}</a>`;
 	}
@@ -284,6 +286,7 @@ let updateMore = (list: DatabaseSeriesData) => {
 		return e;
 	}, "")}
 	</tbody></table>`
+  console.log("===== UPDATING MAIN ====", data,"\n\n...\n\n")
 	send(data);
 }
 

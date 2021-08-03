@@ -26,7 +26,7 @@ export const Channels: ChannelObject = {
     obj: { botlog: null, release: null, schedule: null },
     schedule: "803360266854072372",
     botlog: "813148662707519549",
-    release: "805919561064382495"// "777815091650232362"// 
+    release: "777815091650232362"//"805919561064382495"//  
 }
 
 export const discordClient: discordJs.Client = new discordJs.Client();

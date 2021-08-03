@@ -7,7 +7,7 @@ import { Channels, discordClient } from "./DiscordIDs";
 import { show } from "./show";
 import { CubariChapterLink, defaultStatusCodes, DexChapterLink } from "./strings";
 
-const NOMENTION: boolean = true;
+const NOMENTION: boolean = false;
 
 type MessageDoChange = {
   statusType: string,

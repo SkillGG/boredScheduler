@@ -82,9 +82,9 @@ let onmessage = async (msg: Message): Promise<void> => {
   if (member.roles.cache.has(Roles.staff)) {
     console.log("new message", msg.content);
     let muteid: RegExpExecArray = null;
-    if (muteid = /^(un)?mute\s*<@!(\d+)>\s*$/.exec(msg.content)) {
+    if (muteid = /^(un)?!?mute\s*<@(\d+)>\s*$/.exec(msg.content)) {
       let mutemember = guild.member(muteid[2]);
-      // console.log(mutemember);
+      console.log(mutemember);
       if (!muteid[1])
         await mutemember.roles.add(Roles.mute);
       else
